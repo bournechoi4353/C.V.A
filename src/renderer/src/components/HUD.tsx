@@ -4,6 +4,7 @@ import ClockWidget from './ClockWidget'
 import SidePanel from './SidePanel'
 import TranscriptStrip from './TranscriptStrip'
 import ChatInput from './ChatInput'
+import MicButton from './MicButton'
 
 const STATE_LABELS: Record<Status, string> = {
   idle: 'Standing by',
@@ -37,6 +38,7 @@ export default function HUD() {
       </main>
 
       <footer className="hud__bottom">
+        <MicButton />
         <ChatInput />
       </footer>
     </div>

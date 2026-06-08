@@ -8,7 +8,7 @@
 // The SDK is ESM-only; we load it via dynamic import() so it works from this
 // CommonJS main-process bundle.
 
-const MODEL = 'claude-opus-4-8' // most capable; swap to 'claude-sonnet-4-6' for lower latency
+const MODEL = 'claude-sonnet-4-6' // faster/lower-latency — better fit for a voice loop
 
 const SYSTEM_PROMPT = `You are C.V.A. (Claude Voice Assistant) — a Jarvis-style personal assistant.
 Persona: composed, concise, dry wit. You address the user directly and never waffle.

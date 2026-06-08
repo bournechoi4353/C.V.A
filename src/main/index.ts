@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain } from 'electron'
+import { app, BrowserWindow, ipcMain, session, systemPreferences } from 'electron'
 import { join } from 'node:path'
 import { ask, resetConversation } from './cva'
 
@@ -31,6 +31,14 @@ function createWindow(): void {
 }
 
 app.whenReady().then(() => {
+  // Allow microphone access for the renderer (the OS still gates it via TCC on macOS).
+  session.defaultSession.setPermissionRequestHandler((_wc, permission, callback) => {
+    callback(permission === 'media')
+  })
+  session.defaultSession.setPermissionCheckHandler((_wc, permission) => {
+    return permission === 'media'
+  })
+
   ipcMain.handle('cva:send', async (_event, text: string) => {
     try {
       const reply = await ask(text)
@@ -44,6 +52,21 @@ app.whenReady().then(() => {
 
   ipcMain.handle('cva:reset', () => {
     resetConversation()
+  })
+
+  // Trigger the macOS microphone permission prompt. Renderer getUserMedia alone does
+  // NOT prompt in Electron — the main process has to ask for OS-level (TCC) access.
+  // Returns 'granted' | 'denied' | 'restricted' | 'unsupported'.
+  ipcMain.handle('cva:request-mic', async () => {
+    if (process.platform !== 'darwin') return 'granted'
+    const status = systemPreferences.getMediaAccessStatus('microphone')
+    if (status === 'granted') return 'granted'
+    if (status === 'not-determined') {
+      const ok = await systemPreferences.askForMediaAccess('microphone')
+      return ok ? 'granted' : 'denied'
+    }
+    // 'denied' or 'restricted' — user must change it in System Settings.
+    return status
   })
 
   createWindow()

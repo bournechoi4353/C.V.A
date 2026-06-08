@@ -1,3 +1,5 @@
+import { useStore } from '../store'
+
 function Widget({ title, lines }: { title: string; lines: string[] }) {
   return (
     <div className="widget">
@@ -13,14 +15,24 @@ function Widget({ title, lines }: { title: string; lines: string[] }) {
   )
 }
 
-// Placeholder widgets — real data (weather, calendar, system) arrives in later phases.
+// Placeholder widgets — real data (weather, calendar) arrives in later phases.
 export default function SidePanel({ side }: { side: 'left' | 'right' }) {
+  const sttReady = useStore((s) => s.sttReady)
+  const sttProgress = useStore((s) => s.sttProgress)
+  const sttError = useStore((s) => s.sttError)
+
+  const voiceLine = sttError
+    ? 'Voice · error'
+    : sttReady
+      ? 'Voice · ready'
+      : `Voice · loading ${Math.round(sttProgress)}%`
+
   return (
     <aside className={`panel panel--${side}`}>
       {side === 'left' ? (
         <>
-          <Widget title="System" lines={['Renderer · online', 'Bridge · ready', 'Voice · phase 2']} />
-          <Widget title="Model" lines={['claude-opus-4-8', 'subscription auth']} />
+          <Widget title="System" lines={['Renderer · online', 'Bridge · ready', voiceLine]} />
+          <Widget title="Model" lines={['claude-sonnet-4-6', 'subscription auth']} />
         </>
       ) : (
         <>

@@ -96,6 +96,10 @@ body {
 }
 
 .hud__bottom {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
   padding: 18px 28px;
   border-top: 1px solid var(--line);
 }
@@ -190,6 +194,14 @@ body {
 .orb--listening .orb__core {
   background: radial-gradient(circle at 35% 30%, #ffe6bd, var(--amber) 55%, #8a5a0a 100%);
   box-shadow: 0 0 40px 8px rgba(255, 184, 77, 0.5);
+  /* react to live mic amplitude instead of the idle breathe animation */
+  animation: none;
+  transform: scale(calc(1 + var(--mic-level, 0) * 0.7));
+  transition: transform 0.06s linear;
+}
+.orb--listening .orb__ring {
+  border-color: var(--amber);
+  opacity: 0.85;
 }
 .orb--speaking .orb__core {
   background: radial-gradient(circle at 35% 30%, #c9ffe0, #7dffb0 55%, #0a8a52 100%);
@@ -299,6 +311,49 @@ body {
 .input__send:disabled {
   opacity: 0.35;
   cursor: not-allowed;
+}
+
+/* ---------- Mic / push-to-talk ---------- */
+.mic-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+.mic-error {
+  font-size: 12px;
+  color: #ff8080;
+  max-width: 560px;
+  text-align: center;
+}
+.mic {
+  background: var(--bg-soft);
+  border: 1px solid var(--line);
+  color: var(--text);
+  border-radius: 24px;
+  padding: 10px 22px;
+  font-size: 14px;
+  font-family: var(--font);
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  user-select: none;
+  transition:
+    border-color 0.2s,
+    box-shadow 0.2s,
+    color 0.2s;
+}
+.mic:hover:not(:disabled) {
+  border-color: var(--cyan-soft);
+}
+.mic:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.mic--on {
+  color: #02232e;
+  background: var(--amber);
+  border-color: var(--amber);
+  box-shadow: 0 0 24px 4px rgba(255, 184, 77, 0.4);
 }
 
 /* scrollbar */

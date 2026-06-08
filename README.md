@@ -26,8 +26,21 @@ npm install
 npm run dev
 ```
 
-A window opens with the HUD. Type in the box at the bottom and press Enter — Claude's
-reply appears in the transcript, and the orb pulses while it's thinking.
+A window opens with the HUD. Type in the box and press Enter, **or** talk to it:
+
+## Voice in (Phase 2)
+
+Speech-to-text runs **locally** with Whisper via transformers.js — no API key, no cloud,
+free. On first launch it downloads a ~80MB model from Hugging Face (cached after; the
+System panel shows loading progress).
+
+- **Hold the mic button** (or **hold the Spacebar** when not typing), speak, then release.
+- The orb glows amber and pulses with your voice while listening.
+- On release it transcribes locally, drops your words into the transcript, and sends them
+  to Claude.
+- macOS will prompt for **microphone permission** the first time — allow it.
+
+Voice *output* (Claude speaking back) is Phase 3.
 
 ## Scripts
 
@@ -42,18 +55,22 @@ reply appears in the transcript, and the orb pulses while it's thinking.
 ```
 src/
   main/        Electron main process
-    index.ts   window + IPC handlers
+    index.ts   window + IPC handlers + mic permission
     cva.ts     Claude Agent SDK wrapper (subscription auth, conversation state)
   preload/     contextBridge: window.cva.send() / .reset()
   renderer/    React HUD
     src/
-      components/  HUD, StatusOrb, ClockWidget, SidePanel, TranscriptStrip, ChatInput
-      store.ts     Zustand state (status + messages)
-      styles.css   Jarvis theme
+      components/  HUD, StatusOrb, ClockWidget, SidePanel, TranscriptStrip, ChatInput, MicButton
+      audio.ts        mic capture → mono 16kHz Float32 + live amplitude
+      stt.ts          local Whisper (transformers.js) speech-to-text
+      conversation.ts shared "send text to Claude" turn
+      store.ts        Zustand state (status, messages, STT load state)
+      styles.css      Jarvis theme
 ```
 
 ## Notes
 
 - Model is set in [src/main/cva.ts](src/main/cva.ts) (`MODEL`) — currently
-  `claude-opus-4-8`. Switch to `claude-sonnet-4-6` for lower latency.
+  `claude-sonnet-4-6` (lower latency for the voice loop). Switch to `claude-opus-4-8`
+  for maximum capability.
 - Voice in/out is **Phase 2/3** — for now interaction is text.

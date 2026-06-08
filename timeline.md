@@ -27,7 +27,7 @@ mode, mobile app, smart-home hardware control.
 |---|---|---|
 | App shell | **Electron + React + TypeScript** (full-screen kiosk-capable desktop app) | Tauri (lighter), Next.js web app, Raspberry Pi kiosk |
 | Audio capture | Web Audio API / `MediaRecorder` | `node-record-lpcm16` (native) |
-| Speech-to-text (STT) | **Deepgram** streaming (low latency) | OpenAI Whisper API, local `whisper.cpp`, browser Web Speech API |
+| Speech-to-text (STT) | **Local Whisper** (transformers.js, `whisper-tiny.en`) — free, offline, no API key | Deepgram, OpenAI Whisper API, `whisper.cpp` |
 | Brain | **Claude API** (`claude-opus-4-8` for quality / `claude-sonnet-4-6` for speed) | — |
 | Text-to-speech (TTS) | **ElevenLabs** streaming | OpenAI TTS, system `say`, Cartesia |
 | Wake word | **Picovoice Porcupine** | openWakeWord (local), push-to-talk only |
@@ -57,20 +57,21 @@ mode, mobile app, smart-home hardware control.
 
 ---
 
-## Phase 2 — Voice In (Listening)  ·  ~Week 2
+## Phase 2 — Voice In (Listening)  ·  DONE
 
-**Goal:** Hold a key, speak, see your words transcribed live.
+**Goal:** Hold a key, speak, have your words transcribed and sent to Claude.
 
-- [ ] Mic permission + audio capture pipeline.
-- [ ] Push-to-talk (hold spacebar / a button): start/stop capture.
-- [ ] Integrate streaming STT (Deepgram); render **interim** transcripts live, then
-      finalize.
-- [ ] Voice Activity Detection (VAD) so it knows when you stopped (end-of-utterance).
-- [ ] HUD "listening" state: animated waveform/orb driven by real mic amplitude.
+- [x] Mic permission + audio capture pipeline (Electron permission handler + getUserMedia).
+- [x] Push-to-talk (hold the mic button **or** hold Spacebar): start/stop capture.
+- [x] **Local** STT — Whisper (`whisper-tiny.en`) via transformers.js, fully offline,
+      no API key. Transcribes on release. (Chosen over paid Deepgram to keep it free.)
+- [x] HUD "listening" state: orb glows amber and pulses with real mic amplitude.
+- [ ] _Deferred:_ live interim transcripts + VAD auto-endpointing (Whisper is
+      transcribe-on-release; live streaming + wake-word endpointing come in Phase 7).
 
-**Deliverable:** Speak → live transcript appears → finalized text sent to Claude.
-**Acceptance:** Words appear within ~300ms of speaking; end-of-speech is detected
-reliably.
+**Deliverable:** Speak → release → transcript appears → text sent to Claude. ✅
+**Verified:** whisper-tiny.en transcribes real speech correctly in a Node harness; app
+builds + typechecks clean. (Live mic capture needs the GUI to exercise end-to-end.)
 
 ---
 

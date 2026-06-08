@@ -1,5 +1,6 @@
 node_modules
 out
+src/renderer/public/ort
 dist
 dist-electron
 *.log
