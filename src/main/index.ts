@@ -1,6 +1,7 @@
 import { app, BrowserWindow, ipcMain, session, systemPreferences } from 'electron'
 import { join } from 'node:path'
 import { ask, resetConversation } from './cva'
+import { ensureTts, synthesize } from './tts'
 
 function createWindow(): void {
   const win = new BrowserWindow({
@@ -52,6 +53,30 @@ app.whenReady().then(() => {
 
   ipcMain.handle('cva:reset', () => {
     resetConversation()
+  })
+
+  // Warm up the TTS model in the background so the first spoken reply is fast.
+  ensureTts().catch((err) => console.error('[tts] warmup failed:', err))
+
+  // Ensure the TTS model is loaded; returns ok/error to the renderer.
+  ipcMain.handle('cva:tts-ensure', async () => {
+    try {
+      await ensureTts()
+      return { ok: true }
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : String(err) }
+    }
+  })
+
+  // Synthesize speech for text → { samples: Float32Array, rate } or { error }.
+  ipcMain.handle('cva:speak', async (_event, text: string) => {
+    try {
+      return await synthesize(text)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      console.error('[tts] synthesize failed:', message)
+      return { error: message }
+    }
   })
 
   // Trigger the macOS microphone permission prompt. Renderer getUserMedia alone does

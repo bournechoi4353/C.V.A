@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react'
 import { Recorder } from '../audio'
 import { transcribe } from '../stt'
 import { sendUserText } from '../conversation'
+import { stopPlayback } from '../ttsPlayback'
 import { useStore } from '../store'
 
 function setMicLevel(level: number) {
@@ -20,6 +21,9 @@ export default function MicButton() {
   async function startRec() {
     const { status: s } = useStore.getState()
     if (recordingRef.current || s === 'thinking' || !useStore.getState().sttReady) return
+
+    // Barge-in: if CVA is speaking, cut it off so the user can talk over it.
+    stopPlayback()
 
     // Trigger / check the OS-level mic permission before capturing.
     const access = await window.cva.requestMic()

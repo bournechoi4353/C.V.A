@@ -206,6 +206,14 @@ body {
 .orb--speaking .orb__core {
   background: radial-gradient(circle at 35% 30%, #c9ffe0, #7dffb0 55%, #0a8a52 100%);
   box-shadow: 0 0 40px 8px rgba(125, 255, 176, 0.5);
+  /* react to the live TTS output amplitude */
+  animation: none;
+  transform: scale(calc(1 + var(--mic-level, 0) * 0.7));
+  transition: transform 0.06s linear;
+}
+.orb--speaking .orb__ring {
+  border-color: #7dffb0;
+  opacity: 0.85;
 }
 
 @keyframes breathe {

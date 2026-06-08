@@ -40,7 +40,19 @@ System panel shows loading progress).
   to Claude.
 - macOS will prompt for **microphone permission** the first time — allow it.
 
-Voice *output* (Claude speaking back) is Phase 3.
+## Voice out (Phase 3)
+
+Claude speaks its replies aloud with **Kokoro**, a local neural TTS (free, offline, no
+key) — British-male voice `bm_george`. Generation runs in the main process via
+onnxruntime-node (native, fast); the audio is played in the renderer via Web Audio so the
+orb glows **green and pulses to Claude's actual voice**. First launch downloads a ~90MB
+model (cached after; the System panel shows "Voice out · loading…").
+
+- Ask anything (typed or spoken) → Claude replies in text **and** speaks it.
+- **Barge-in:** press the mic while it's talking to cut it off and start a new turn.
+- Voice is set in [src/main/tts.ts](src/main/tts.ts) (`VOICE`) — try `bm_lewis`, `am_michael`, etc.
+
+> First run downloads both speech models (~80MB Whisper + ~90MB Kokoro). One-time.
 
 ## Scripts
 
@@ -57,14 +69,16 @@ src/
   main/        Electron main process
     index.ts   window + IPC handlers + mic permission
     cva.ts     Claude Agent SDK wrapper (subscription auth, conversation state)
-  preload/     contextBridge: window.cva.send() / .reset()
+    tts.ts     Kokoro text-to-speech (onnxruntime-node, native)
+  preload/     contextBridge: window.cva.send() / .speak() / .requestMic() / …
   renderer/    React HUD
     src/
       components/  HUD, StatusOrb, ClockWidget, SidePanel, TranscriptStrip, ChatInput, MicButton
       audio.ts        mic capture → mono 16kHz Float32 + live amplitude
       stt.ts          local Whisper (transformers.js) speech-to-text
-      conversation.ts shared "send text to Claude" turn
-      store.ts        Zustand state (status, messages, STT load state)
+      ttsPlayback.ts  Web Audio playback of TTS + orb amplitude
+      conversation.ts shared turn: text → Claude → spoken reply
+      store.ts        Zustand state (status, messages, STT/TTS load state)
       styles.css      Jarvis theme
 ```
 

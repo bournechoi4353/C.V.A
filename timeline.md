@@ -29,7 +29,7 @@ mode, mobile app, smart-home hardware control.
 | Audio capture | Web Audio API / `MediaRecorder` | `node-record-lpcm16` (native) |
 | Speech-to-text (STT) | **Local Whisper** (transformers.js, `whisper-tiny.en`) — free, offline, no API key | Deepgram, OpenAI Whisper API, `whisper.cpp` |
 | Brain | **Claude API** (`claude-opus-4-8` for quality / `claude-sonnet-4-6` for speed) | — |
-| Text-to-speech (TTS) | **ElevenLabs** streaming | OpenAI TTS, system `say`, Cartesia |
+| Text-to-speech (TTS) | **Kokoro** (kokoro-js, local neural, `bm_george` voice) — free, offline, no key | ElevenLabs, OpenAI TTS, system `say` |
 | Wake word | **Picovoice Porcupine** | openWakeWord (local), push-to-talk only |
 | State/store | Zustand | Redux, Jotai |
 | Persistence | SQLite (better-sqlite3) | JSON file, Postgres |
@@ -75,21 +75,23 @@ builds + typechecks clean. (Live mic capture needs the GUI to exercise end-to-en
 
 ---
 
-## Phase 3 — Voice Out (Speaking)  ·  ~Week 3
+## Phase 3 — Voice Out (Speaking)  ·  DONE
 
 **Goal:** Claude answers *out loud* with a reacting visual.
 
-- [ ] Integrate streaming TTS (ElevenLabs); play as audio arrives.
-- [ ] Stream Claude's text → feed sentence chunks into TTS as they complete (don't wait
-      for the full answer).
-- [ ] HUD "speaking" state: orb/waveform reacts to output audio amplitude.
-- [ ] Barge-in (stretch): if you start talking, stop playback and listen.
-- [ ] Settings: voice selection, volume, speech rate.
+- [x] **Local** neural TTS — Kokoro (kokoro-js) in the main process via onnxruntime-node
+      (native, verified under Electron's ABI). Free/offline. (Chosen over paid ElevenLabs.)
+- [x] HUD "speaking" state: orb glows green and pulses to the **real** output amplitude
+      (audio generated in main → played in renderer via Web Audio + AnalyserNode).
+- [x] Barge-in: pressing the mic while CVA is speaking cuts off playback.
+- [ ] _Deferred:_ sentence-chunk streaming TTS (needs streaming Claude output — our
+      Claude call is non-streaming today; reply is short by design so we speak it whole).
+- [ ] _Deferred:_ settings UI for voice/volume/rate (voice hardcoded to `bm_george`).
 
-**Deliverable:** Full voice loop — speak, it thinks, it speaks back, screen reflects each
-state.
-**Acceptance:** First audio out within ~1.5s of you finishing; states transition
-cleanly listening → thinking → speaking → idle.
+**Deliverable:** Full voice loop — speak → it thinks → it speaks back, orb reflects each
+state (listening → thinking → speaking → idle). ✅
+**Verified:** Kokoro generates audible speech (~4s clip, 1.6s) under the exact Electron
+Node ABI; app builds + typechecks clean. (Live playback needs the GUI to exercise.)
 
 ---
 

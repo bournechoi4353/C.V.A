@@ -21,18 +21,22 @@ export default function SidePanel({ side }: { side: 'left' | 'right' }) {
   const sttProgress = useStore((s) => s.sttProgress)
   const sttError = useStore((s) => s.sttError)
 
-  const voiceLine = sttError
-    ? 'Voice · error'
+  const ttsReady = useStore((s) => s.ttsReady)
+  const ttsError = useStore((s) => s.ttsError)
+
+  const voiceInLine = sttError
+    ? 'Voice in · error'
     : sttReady
-      ? 'Voice · ready'
-      : `Voice · loading ${Math.round(sttProgress)}%`
+      ? 'Voice in · ready'
+      : `Voice in · loading ${Math.round(sttProgress)}%`
+  const voiceOutLine = ttsError ? 'Voice out · error' : ttsReady ? 'Voice out · ready' : 'Voice out · loading…'
 
   return (
     <aside className={`panel panel--${side}`}>
       {side === 'left' ? (
         <>
-          <Widget title="System" lines={['Renderer · online', 'Bridge · ready', voiceLine]} />
-          <Widget title="Model" lines={['claude-sonnet-4-6', 'subscription auth']} />
+          <Widget title="System" lines={['Renderer · online', voiceInLine, voiceOutLine]} />
+          <Widget title="Model" lines={['claude-sonnet-4-6', 'kokoro · bm_george']} />
         </>
       ) : (
         <>
