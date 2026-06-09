@@ -3,11 +3,8 @@ import { Recorder } from '../audio'
 import { transcribe } from '../stt'
 import { sendUserText } from '../conversation'
 import { stopPlayback } from '../ttsPlayback'
+import { setLevel } from '../level'
 import { useStore } from '../store'
-
-function setMicLevel(level: number) {
-  document.documentElement.style.setProperty('--mic-level', String(level))
-}
 
 export default function MicButton() {
   const recorderRef = useRef<Recorder | null>(null)
@@ -38,7 +35,7 @@ export default function MicButton() {
     useStore.getState().setSttError(null)
 
     const rec = new Recorder()
-    rec.onLevel = setMicLevel
+    rec.onLevel = setLevel
     recorderRef.current = rec
     try {
       await rec.start()
@@ -55,7 +52,7 @@ export default function MicButton() {
     recordingRef.current = false
     const rec = recorderRef.current!
     recorderRef.current = null
-    setMicLevel(0)
+    setLevel(0)
     useStore.getState().setStatus('thinking')
 
     try {

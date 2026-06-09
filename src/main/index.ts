@@ -1,6 +1,6 @@
 import { app, BrowserWindow, ipcMain, session, systemPreferences } from 'electron'
 import { join } from 'node:path'
-import { ask, resetConversation } from './cva'
+import { ask, resetConversation, warm } from './cva'
 import { ensureTts, synthesize } from './tts'
 
 function createWindow(): void {
@@ -55,7 +55,8 @@ app.whenReady().then(() => {
     resetConversation()
   })
 
-  // Warm up the TTS model in the background so the first spoken reply is fast.
+  // Warm up the Claude session + TTS model in the background so the first turn is fast.
+  warm().catch((err) => console.error('[cva] warm failed:', err))
   ensureTts().catch((err) => console.error('[tts] warmup failed:', err))
 
   // Ensure the TTS model is loaded; returns ok/error to the renderer.

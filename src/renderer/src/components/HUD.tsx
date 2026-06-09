@@ -1,5 +1,6 @@
 import { useStore, type Status } from '../store'
 import StatusOrb from './StatusOrb'
+import Captions from './Captions'
 import ClockWidget from './ClockWidget'
 import SidePanel from './SidePanel'
 import TranscriptStrip from './TranscriptStrip'
@@ -17,7 +18,8 @@ export default function HUD() {
   const status = useStore((s) => s.status)
 
   return (
-    <div className="hud">
+    <div className={`hud hud--${status}`}>
+      <div className="hud__bg" />
       <header className="hud__top">
         <div className="hud__brand">
           C.V.A<span> / Claude Voice Assistant</span>
@@ -31,6 +33,7 @@ export default function HUD() {
         <section className="hud__stage">
           <StatusOrb />
           <div className={`hud__state hud__state--${status}`}>{STATE_LABELS[status]}</div>
+          <Captions />
           <TranscriptStrip />
         </section>
 

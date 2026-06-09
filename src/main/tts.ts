@@ -6,7 +6,7 @@
 // Web Audio so the orb can react to real amplitude.
 
 const MODEL = 'onnx-community/Kokoro-82M-v1.0-ONNX'
-const VOICE = 'bm_george' // British male — Jarvis-ish. Other options: bm_lewis, am_michael
+const VOICE = 'af_heart' // highest-graded (A) Kokoro voice — most natural. Others: af_bella, am_fenrir, bm_george
 const DTYPE = 'q8' // verified to load+run on this runtime; ~92MB
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

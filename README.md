@@ -43,14 +43,14 @@ System panel shows loading progress).
 ## Voice out (Phase 3)
 
 Claude speaks its replies aloud with **Kokoro**, a local neural TTS (free, offline, no
-key) — British-male voice `bm_george`. Generation runs in the main process via
+key) — voice `af_heart` (Kokoro's highest-graded, most natural voice). Generation runs in the main process via
 onnxruntime-node (native, fast); the audio is played in the renderer via Web Audio so the
 orb glows **green and pulses to Claude's actual voice**. First launch downloads a ~90MB
 model (cached after; the System panel shows "Voice out · loading…").
 
 - Ask anything (typed or spoken) → Claude replies in text **and** speaks it.
 - **Barge-in:** press the mic while it's talking to cut it off and start a new turn.
-- Voice is set in [src/main/tts.ts](src/main/tts.ts) (`VOICE`) — try `bm_lewis`, `am_michael`, etc.
+- Voice is set in [src/main/tts.ts](src/main/tts.ts) (`VOICE`) — try `af_bella`, `am_fenrir`, `bm_george`, etc.
 
 > First run downloads both speech models (~80MB Whisper + ~90MB Kokoro). One-time.
 
@@ -73,10 +73,11 @@ src/
   preload/     contextBridge: window.cva.send() / .speak() / .requestMic() / …
   renderer/    React HUD
     src/
-      components/  HUD, StatusOrb, ClockWidget, SidePanel, TranscriptStrip, ChatInput, MicButton
+      components/  HUD, StatusOrb (canvas orb), Captions, ClockWidget, SidePanel, TranscriptStrip, ChatInput, MicButton
       audio.ts        mic capture → mono 16kHz Float32 + live amplitude
       stt.ts          local Whisper (transformers.js) speech-to-text
       ttsPlayback.ts  Web Audio playback of TTS + orb amplitude
+      level.ts        shared audio level (mic + TTS) → canvas orb
       conversation.ts shared turn: text → Claude → spoken reply
       store.ts        Zustand state (status, messages, STT/TTS load state)
       styles.css      Jarvis theme
@@ -85,6 +86,6 @@ src/
 ## Notes
 
 - Model is set in [src/main/cva.ts](src/main/cva.ts) (`MODEL`) — currently
-  `claude-sonnet-4-6` (lower latency for the voice loop). Switch to `claude-opus-4-8`
-  for maximum capability.
+  `claude-haiku-4-5` (fastest tier). Switch to `claude-sonnet-4-6` or `claude-opus-4-8`
+  for more capability.
 - Voice in/out is **Phase 2/3** — for now interaction is text.

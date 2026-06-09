@@ -95,21 +95,42 @@ Node ABI; app builds + typechecks clean. (Live playback needs the GUI to exercis
 
 ---
 
-## Phase 4 — The Jarvis HUD  ·  ~Week 4
+## Phase 3.5 — Streaming Pipeline (Latency)  ·  PLANNED
+
+**Goal:** Halve felt latency — start speaking the first sentence while Claude is still writing.
+
+- [ ] Stream Claude output token-by-token (Agent SDK `includePartialMessages` → `stream_event`s).
+- [ ] Chunk the stream into sentences as they complete.
+- [ ] Per-sentence TTS: synth each sentence as it arrives (pipeline, don't wait for the full reply).
+- [ ] Queued playback: play sentences back-to-back; orb stays "speaking" across the queue.
+- [ ] Barge-in mid-stream: a new mic press cancels the in-flight Claude stream + TTS queue.
+
+**Deliverable:** First audio out at ~time-to-first-sentence (~2s) instead of full-reply +
+full-TTS (~4s).
+**Why deferred:** Bigger refactor across cva.ts / conversation.ts / tts.ts; tackled after the
+HUD pass per direction. The persistent-session warm start (done in Phase 3 follow-up) already
+removed the ~1s subprocess respawn.
+
+---
+
+## Phase 4 — The Jarvis HUD  ·  DONE
 
 **Goal:** Make it *look* like Jarvis — a living dashboard, not a chat box.
 
-- [ ] Central reactive orb (canvas/WebGL or Lottie/SVG) with distinct
-      idle/listening/thinking/speaking animations.
-- [ ] Widget grid: live clock + date, weather, today's calendar, recent transcript,
-      system status (mic/connection).
-- [ ] Captions: large, readable, animated transcript of what it's saying.
-- [ ] Theme pass: glow, blur, subtle motion, sound cues for state changes.
-- [ ] Responsive layout for the target display (define resolution: e.g. 1080p kiosk).
+- [x] Central reactive **canvas** orb (`StatusOrb.tsx`) — glowing core that grows with
+      amplitude, reactive waveform ring, rotating arcs; palette shifts per state
+      (idle cyan / listening amber / thinking pulse / speaking green). Fed by a shared
+      `level.ts` (mic while listening, TTS while speaking).
+- [x] Widget grid: live clock + date, system status (renderer/voice-in/voice-out with
+      status dots), model card, Activity (current state + last input). Weather/agenda are
+      styled placeholders → real data in Phase 5.
+- [x] Captions: large, animated readout of CVA's current spoken line.
+- [x] Theme pass: ambient grid background with state-reactive wash, glow, smooth motion.
+      (Sound cues for state changes deferred.)
+- [~] Responsive layout (min sizes set; full 1080p-kiosk tuning lands in Phase 8).
 
-**Deliverable:** A screen you'd be happy to leave on a wall/desk.
-**Acceptance:** Every assistant state is visually unambiguous at a glance from across the
-room.
+**Deliverable:** A screen you'd be happy to leave on a wall/desk. ✅
+**Verified:** typecheck + build + lint clean. (Live visuals need the GUI to view.)
 
 ---
 

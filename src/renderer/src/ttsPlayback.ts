@@ -1,9 +1,7 @@
 // Plays TTS audio (Float32 PCM from the main process) via Web Audio, and drives the
-// orb amplitude (--mic-level) from the live output so the orb pulses with the voice.
+// orb amplitude from the live output so the orb pulses with the voice.
 
-function setOrbLevel(level: number) {
-  document.documentElement.style.setProperty('--mic-level', String(level))
-}
+import { setLevel } from './level'
 
 let currentSource: AudioBufferSourceNode | null = null
 let currentCtx: AudioContext | null = null
@@ -18,7 +16,7 @@ export function stopPlayback() {
   currentSource = null
   currentCtx?.close().catch(() => {})
   currentCtx = null
-  setOrbLevel(0)
+  setLevel(0)
 }
 
 /** Play mono Float32 PCM at the given sample rate. Resolves when playback ends. */
@@ -49,13 +47,13 @@ export function playAudio(samples: Float32Array, rate: number): Promise<void> {
         const v = (data[i] - 128) / 128
         sum += v * v
       }
-      setOrbLevel(Math.min(1, Math.sqrt(sum / data.length) * 3))
+      setLevel(Math.min(1, Math.sqrt(sum / data.length) * 3))
       raf = requestAnimationFrame(tick)
     }
 
     const finish = () => {
       cancelAnimationFrame(raf)
-      setOrbLevel(0)
+      setLevel(0)
       if (currentSource === source) currentSource = null
       if (currentCtx === ctx) currentCtx = null
       ctx.close().catch(() => {})
