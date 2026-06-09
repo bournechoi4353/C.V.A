@@ -1,71 +1,99 @@
-// Plays TTS audio (Float32 PCM from the main process) via Web Audio, and drives the
-// orb amplitude from the live output so the orb pulses with the voice.
+// Gapless audio queue for the streaming pipeline. Per-sentence audio chunks arrive over
+// time; we play them back-to-back via Web Audio, drive the orb amplitude from the live
+// output, and expose stop (barge-in) + drain-wait.
 
 import { setLevel } from './level'
 
-let currentSource: AudioBufferSourceNode | null = null
-let currentCtx: AudioContext | null = null
+interface Chunk {
+  samples: Float32Array
+  rate: number
+}
 
-/** Stop any in-progress playback (used for barge-in). */
-export function stopPlayback() {
+let queue: Chunk[] = []
+let playing = false
+let ctx: AudioContext | null = null
+let activeSource: AudioBufferSourceNode | null = null
+let raf = 0
+let drainResolvers: Array<() => void> = []
+
+function resolveDrain() {
+  const rs = drainResolvers
+  drainResolvers = []
+  rs.forEach((r) => r())
+}
+
+export function enqueueAudio(samples: Float32Array, rate: number): void {
+  queue.push({ samples, rate })
+  if (!playing) void playNext()
+}
+
+function playNext(): void {
+  const chunk = queue.shift()
+  if (!chunk) {
+    playing = false
+    setLevel(0)
+    resolveDrain()
+    return
+  }
+  playing = true
+
+  if (!ctx) ctx = new AudioContext()
+  const audioCtx = ctx
+
+  const buffer = audioCtx.createBuffer(1, chunk.samples.length, chunk.rate)
+  buffer.getChannelData(0).set(chunk.samples)
+
+  const source = audioCtx.createBufferSource()
+  source.buffer = buffer
+  activeSource = source
+
+  const analyser = audioCtx.createAnalyser()
+  analyser.fftSize = 512
+  source.connect(analyser)
+  analyser.connect(audioCtx.destination)
+
+  const data = new Uint8Array(analyser.frequencyBinCount)
+  const tick = () => {
+    analyser.getByteTimeDomainData(data)
+    let sum = 0
+    for (let i = 0; i < data.length; i++) {
+      const v = (data[i] - 128) / 128
+      sum += v * v
+    }
+    setLevel(Math.min(1, Math.sqrt(sum / data.length) * 3))
+    raf = requestAnimationFrame(tick)
+  }
+
+  source.onended = () => {
+    cancelAnimationFrame(raf)
+    if (activeSource === source) activeSource = null
+    playNext()
+  }
+
+  // Resume in case the context started suspended (autoplay policy).
+  audioCtx.resume().finally(() => {
+    source.start()
+    tick()
+  })
+}
+
+/** Stop playback and clear the queue (barge-in). */
+export function stopAudioQueue(): void {
+  queue = []
+  cancelAnimationFrame(raf)
   try {
-    currentSource?.stop()
+    activeSource?.stop()
   } catch {
     /* already stopped */
   }
-  currentSource = null
-  currentCtx?.close().catch(() => {})
-  currentCtx = null
+  activeSource = null
+  playing = false
   setLevel(0)
+  resolveDrain()
 }
 
-/** Play mono Float32 PCM at the given sample rate. Resolves when playback ends. */
-export function playAudio(samples: Float32Array, rate: number): Promise<void> {
-  stopPlayback()
-  return new Promise((resolve) => {
-    const ctx = new AudioContext()
-    currentCtx = ctx
-
-    const buffer = ctx.createBuffer(1, samples.length, rate)
-    buffer.getChannelData(0).set(samples)
-
-    const source = ctx.createBufferSource()
-    source.buffer = buffer
-    currentSource = source
-
-    const analyser = ctx.createAnalyser()
-    analyser.fftSize = 512
-    source.connect(analyser)
-    analyser.connect(ctx.destination)
-
-    const data = new Uint8Array(analyser.frequencyBinCount)
-    let raf = 0
-    const tick = () => {
-      analyser.getByteTimeDomainData(data)
-      let sum = 0
-      for (let i = 0; i < data.length; i++) {
-        const v = (data[i] - 128) / 128
-        sum += v * v
-      }
-      setLevel(Math.min(1, Math.sqrt(sum / data.length) * 3))
-      raf = requestAnimationFrame(tick)
-    }
-
-    const finish = () => {
-      cancelAnimationFrame(raf)
-      setLevel(0)
-      if (currentSource === source) currentSource = null
-      if (currentCtx === ctx) currentCtx = null
-      ctx.close().catch(() => {})
-      resolve()
-    }
-
-    source.onended = finish
-    // The context can start suspended (autoplay policy) when created outside the direct
-    // gesture call stack — resume so audio actually plays.
-    ctx.resume().finally(() => {
-      source.start()
-      tick()
-    })
-  })
+/** Resolves once the queue has fully drained (or was stopped). */
+export function audioQueueIdle(): Promise<void> {
+  if (!playing && queue.length === 0) return Promise.resolve()
+  return new Promise((resolve) => drainResolvers.push(resolve))
 }

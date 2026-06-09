@@ -66,6 +66,15 @@ export default function SidePanel({ side }: { side: 'left' | 'right' }) {
     )
   }
 
+  const weather = useStore((s) => s.weather)
+  const weatherLines = weather
+    ? [
+        { text: weather.place },
+        { text: `${weather.tempF}°F · ${weather.desc}` },
+        { text: `feels ${weather.feelsF}° · wind ${weather.wind} mph` },
+      ]
+    : [{ text: 'Ask CVA about the weather' }]
+
   return (
     <aside className="panel panel--right">
       <Widget
@@ -75,8 +84,8 @@ export default function SidePanel({ side }: { side: 'left' | 'right' }) {
           { text: lastUser ? `Last: “${lastUser.slice(0, 40)}”` : 'No input yet' },
         ]}
       />
-      <Widget title="Weather" lines={[{ text: '— phase 5 —' }]} />
-      <Widget title="Agenda" lines={[{ text: '— phase 5 —' }]} />
+      <Widget title="Weather" lines={weatherLines} />
+      <Widget title="Agenda" lines={[{ text: '— calendar: later —' }]} />
     </aside>
   )
 }

@@ -1,22 +1,33 @@
-export interface CvaReply {
-  text: string
-  error?: string
-}
-
 export type MicAccess = 'granted' | 'denied' | 'restricted' | 'not-determined' | 'unknown'
 
-export interface Speech {
-  samples?: Float32Array
-  rate?: number
-  error?: string
+export interface Weather {
+  place: string
+  tempF: number
+  feelsF: number
+  desc: string
+  humidity: number
+  wind: number
+}
+
+export interface TimerFire {
+  id: string
+  label: string | null
+  phrase: string
+  samples: Float32Array | null
+  rate: number | null
 }
 
 export interface CvaApi {
-  send: (text: string) => Promise<CvaReply>
+  askStream: (text: string) => Promise<{ text?: string; error?: string }>
+  cancel: () => Promise<void>
   reset: () => Promise<void>
   requestMic: () => Promise<MicAccess>
-  speak: (text: string) => Promise<Speech>
   ttsEnsure: () => Promise<{ ok: boolean; error?: string }>
+  onTurnText: (cb: (p: { delta: string }) => void) => () => void
+  onTurnAudio: (cb: (p: { seq: number; samples: Float32Array; rate: number }) => void) => () => void
+  onTurnTool: (cb: (p: { name: string }) => void) => () => void
+  onWeather: (cb: (p: Weather) => void) => () => void
+  onTimerFire: (cb: (p: TimerFire) => void) => () => void
 }
 
 declare global {

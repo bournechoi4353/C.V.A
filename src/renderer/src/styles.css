@@ -354,6 +354,58 @@ body {
   text-shadow: 0 0 26px rgba(56, 225, 255, 0.28);
 }
 
+/* tool-activity chip */
+.toolchip {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  padding: 7px 16px;
+  border-radius: 20px;
+  background: rgba(56, 225, 255, 0.08);
+  border: 1px solid var(--line);
+  color: var(--cyan);
+  font-size: 13px;
+  letter-spacing: 0.5px;
+}
+.toolchip__spinner {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  border: 2px solid rgba(56, 225, 255, 0.25);
+  border-top-color: var(--cyan);
+  animation: toolspin 0.7s linear infinite;
+}
+@keyframes toolspin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* transient toast (timer alerts) */
+.toast {
+  position: absolute;
+  top: 80px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+  padding: 14px 22px;
+  border-radius: 12px;
+  background: rgba(10, 15, 28, 0.96);
+  border: 1px solid var(--amber);
+  color: var(--text);
+  font-size: 16px;
+  box-shadow: 0 0 30px 4px rgba(255, 184, 77, 0.25);
+  animation: toastin 0.3s ease;
+}
+@keyframes toastin {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
 /* status dots in widgets */
 .dot {
   display: inline-block;

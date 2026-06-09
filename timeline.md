@@ -95,21 +95,27 @@ Node ABI; app builds + typechecks clean. (Live playback needs the GUI to exercis
 
 ---
 
-## Phase 3.5 — Streaming Pipeline (Latency)  ·  PLANNED
+## Phase 3.5 — Streaming Pipeline (Latency)  ·  DONE
 
-**Goal:** Halve felt latency — start speaking the first sentence while Claude is still writing.
+**Goal:** Cut felt latency — start speaking the first sentence while Claude is still writing.
 
-- [ ] Stream Claude output token-by-token (Agent SDK `includePartialMessages` → `stream_event`s).
-- [ ] Chunk the stream into sentences as they complete.
-- [ ] Per-sentence TTS: synth each sentence as it arrives (pipeline, don't wait for the full reply).
-- [ ] Queued playback: play sentences back-to-back; orb stays "speaking" across the queue.
-- [ ] Barge-in mid-stream: a new mic press cancels the in-flight Claude stream + TTS queue.
+- [x] Stream Claude output via `includePartialMessages` → `stream_event` text deltas
+      (handled in `cva.ts`; `ask(prompt, onDelta)`).
+- [x] Chunk the stream into sentences as they complete (`pipeline.ts` `takeSentences` —
+      decimal/abbreviation-safe char walker).
+- [x] Per-sentence TTS: synth each sentence as it arrives, pipelined (Kokoro in main),
+      emit `cva:turn-audio` per sentence.
+- [x] Queued gapless playback (`ttsPlayback.ts`): sentences play back-to-back; orb stays
+      "speaking" across the queue; live captions update from `cva:turn-text` deltas.
+- [x] Barge-in: a mic press cancels the in-flight turn (main stops emitting via a cancel
+      flag; renderer clears the queue) with a turn-generation guard so the dying turn
+      can't clobber the new one's state.
 
-**Deliverable:** First audio out at ~time-to-first-sentence (~2s) instead of full-reply +
-full-TTS (~4s).
-**Why deferred:** Bigger refactor across cva.ts / conversation.ts / tts.ts; tackled after the
-HUD pass per direction. The persistent-session warm start (done in Phase 3 follow-up) already
-removed the ~1s subprocess respawn.
+**Deliverable:** First audio at ~time-to-first-sentence instead of full-reply + full-TTS. ✅
+**Verified (Node, real Claude stream + native Kokoro):** for a 4-sentence reply, streaming
+first-audio **≈4.9s** vs sequential **≈12.2s** (~7s sooner — synthesizing the whole
+paragraph at once takes ~7s; streaming plays sentence 1 the moment it's ready). The gap
+grows with reply length. Sentence splitter unit-tested (decimals, versions, `?!`, mid-stream).
 
 ---
 
@@ -134,25 +140,32 @@ removed the ~1s subprocess respawn.
 
 ---
 
-## Phase 5 — Claude Gets Hands (Tools)  ·  ~Weeks 5–6
+## Phase 5 — Claude Gets Hands (Tools)  ·  DONE
 
 **Goal:** Claude can *do* things, not just talk. Tool use + agentic loop.
 
-- [ ] Implement Claude tool-use loop (define tools, handle `tool_use`, return results,
-      continue).
-- [ ] Starter tools:
-  - [ ] `web_search` — answer current-events / factual questions.
-  - [ ] `get_time` / `set_timer` / `set_alarm`.
-  - [ ] `update_ui` — let Claude push widgets/cards to the HUD (e.g. "show me the
-        weather" → renders a weather card).
-  - [ ] `get_weather`.
-- [ ] Integrations (pick what you use): Google Calendar (read agenda), Gmail (read/draft).
-- [ ] Tool execution feedback in the HUD ("Searching the web…").
+- [x] Tool-use loop — handled by the Agent SDK; custom tools via in-process MCP
+      (`createSdkMcpServer` + `tool()`), auto-approved with `allowedTools` +
+      `permissionMode: 'dontAsk'`. `strictMcpConfig: true` locks the session to ONLY our
+      tools (excludes the account's claude.ai connectors, which otherwise hijack replies).
+- [x] Starter tools ([tools.ts](src/main/tools.ts)):
+  - [x] **WebSearch** — built-in; **works on subscription** (no API key). Current events/facts.
+  - [x] `get_time` — current local date/time.
+  - [x] `get_weather` — free **Open-Meteo** (geocode + current), no key; also fills the
+        Weather widget.
+  - [x] `set_timer` — countdown; on expiry CVA **speaks** an alert (Kokoro) + a HUD toast.
+- [x] Tool-use feedback in the HUD — "Searching the web…" / "Checking the weather…" chip.
+- [ ] _Deferred:_ generic `update_ui` cards; Gmail/Calendar (OAuth-heavy — note the
+      subscription already exposes account connectors, but we lock them out for control).
+- [x] Spoken-output hygiene: persona forbids URLs/citations + a TTS sanitizer strips links
+      so audio never reads a URL.
 
-**Deliverable:** "What's on my calendar?" / "What's the weather Friday?" / "Set a 10
-minute timer" all work end-to-end by voice.
-**Acceptance:** Tools run reliably; failures degrade gracefully with a spoken apology,
-not a crash.
+**Deliverable:** "What's the weather in Tokyo?" / "Set a 10-minute timer" / "Who's the
+president of France?" work end-to-end. ✅
+**Verified (Node, real subscription):** custom tool handler executes, WebSearch returns
+live results, `strictMcpConfig` yields concise replies ("It's 70 degrees and fair in Tokyo
+right now."), Open-Meteo fetch + widget emit works, spoken text is URL-free. Tool errors
+return `isError` → Claude apologizes rather than crashing.
 
 ---
 

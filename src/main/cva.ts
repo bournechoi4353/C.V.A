@@ -11,6 +11,7 @@
 // from prompt caching.
 
 import type { SDKUserMessage } from '@anthropic-ai/claude-agent-sdk'
+import { createToolServer, ALLOWED_TOOLS } from './tools'
 
 const MODEL = 'claude-haiku-4-5' // fastest tier — testing voice-loop latency
 
@@ -18,7 +19,13 @@ const SYSTEM_PROMPT = `You are C.V.A. (Claude Voice Assistant) — a Jarvis-styl
 Persona: composed, concise, dry wit. You address the user directly and never waffle.
 Because your replies are spoken aloud, keep them short and natural — usually one to three
 sentences. Avoid markdown, bullet lists, code blocks, and emoji unless explicitly asked.
-If you don't know something, say so plainly.`
+If you don't know something, say so plainly.
+
+You have tools: get the current time, get the weather for a city, set timers, and search
+the web for current/factual information. Use them silently when they'd help — never list,
+name, or describe your tools, and don't narrate that you're using one. Just answer.
+Because you're speaking aloud, never include URLs, links, citations, or a "Sources:" list —
+state the answer in plain spoken words.`
 
 type AgentSdk = typeof import('@anthropic-ai/claude-agent-sdk')
 
@@ -77,6 +84,8 @@ let alive = false
 let accumulated = ''
 let pendingResolve: ((text: string) => void) | null = null
 let pendingReject: ((err: unknown) => void) | null = null
+let pendingOnDelta: ((text: string) => void) | null = null
+let pendingOnTool: ((name: string) => void) | null = null
 let chain: Promise<unknown> = Promise.resolve() // serialize turns (one in flight)
 
 async function startSession(): Promise<void> {
@@ -92,8 +101,12 @@ async function startSession(): Promise<void> {
     options: {
       model: MODEL,
       systemPrompt: SYSTEM_PROMPT,
-      allowedTools: [], // plain conversation — tools land in Phase 5
+      mcpServers: { cva: createToolServer() }, // get_time / get_weather / set_timer
+      allowedTools: ALLOWED_TOOLS, // our tools + built-in WebSearch
+      permissionMode: 'dontAsk', // auto-allow the above, deny everything else (no prompts)
+      strictMcpConfig: true, // ONLY our tools — ignore the account's claude.ai connectors
       settingSources: [], // don't load filesystem CLAUDE.md / settings into the persona
+      includePartialMessages: true, // stream text deltas for the low-latency pipeline
     },
   })
 
@@ -106,9 +119,20 @@ async function startSession(): Promise<void> {
 async function consume(q: AsyncIterable<any>): Promise<void> {
   try {
     for await (const msg of q) {
-      if (msg.type === 'assistant' && msg.message?.content) {
+      if (msg.type === 'stream_event') {
+        // Incremental text deltas — drive the streaming TTS pipeline.
+        const event = msg.event
+        if (
+          event?.type === 'content_block_delta' &&
+          event.delta?.type === 'text_delta' &&
+          event.delta.text
+        ) {
+          pendingOnDelta?.(event.delta.text)
+        }
+      } else if (msg.type === 'assistant' && msg.message?.content) {
         for (const block of msg.message.content) {
           if (block.type === 'text' && block.text) accumulated += block.text
+          else if (block.type === 'tool_use' && block.name) pendingOnTool?.(block.name)
         }
       } else if (msg.type === 'result') {
         const text =
@@ -119,6 +143,8 @@ async function consume(q: AsyncIterable<any>): Promise<void> {
         const resolve = pendingResolve
         pendingResolve = null
         pendingReject = null
+        pendingOnDelta = null
+        pendingOnTool = null
         resolve?.(text.trim())
       }
     }
@@ -130,6 +156,8 @@ async function consume(q: AsyncIterable<any>): Promise<void> {
     pendingReject?.(new Error('Claude session ended'))
     pendingResolve = null
     pendingReject = null
+    pendingOnDelta = null
+    pendingOnTool = null
   }
 }
 
@@ -137,13 +165,19 @@ export interface CvaReply {
   text: string
 }
 
-export async function ask(prompt: string): Promise<CvaReply> {
+export async function ask(
+  prompt: string,
+  onDelta?: (text: string) => void,
+  onTool?: (name: string) => void,
+): Promise<CvaReply> {
   const run = async (): Promise<CvaReply> => {
     if (!alive) await startSession()
     const text = await new Promise<string>((resolve, reject) => {
       accumulated = ''
       pendingResolve = resolve
       pendingReject = reject
+      pendingOnDelta = onDelta ?? null
+      pendingOnTool = onTool ?? null
       input!.push({
         type: 'user',
         message: { role: 'user', content: prompt },

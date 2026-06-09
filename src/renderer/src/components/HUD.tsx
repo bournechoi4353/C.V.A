@@ -6,6 +6,8 @@ import SidePanel from './SidePanel'
 import TranscriptStrip from './TranscriptStrip'
 import ChatInput from './ChatInput'
 import MicButton from './MicButton'
+import ToolChip from './ToolChip'
+import Toast from './Toast'
 
 const STATE_LABELS: Record<Status, string> = {
   idle: 'Standing by',
@@ -33,6 +35,7 @@ export default function HUD() {
         <section className="hud__stage">
           <StatusOrb />
           <div className={`hud__state hud__state--${status}`}>{STATE_LABELS[status]}</div>
+          <ToolChip />
           <Captions />
           <TranscriptStrip />
         </section>
@@ -44,6 +47,8 @@ export default function HUD() {
         <MicButton />
         <ChatInput />
       </footer>
+
+      <Toast />
     </div>
   )
 }

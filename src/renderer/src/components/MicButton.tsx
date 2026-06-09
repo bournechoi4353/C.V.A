@@ -1,8 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { Recorder } from '../audio'
 import { transcribe } from '../stt'
-import { sendUserText } from '../conversation'
-import { stopPlayback } from '../ttsPlayback'
+import { sendUserText, cancelActiveTurn } from '../conversation'
 import { setLevel } from '../level'
 import { useStore } from '../store'
 
@@ -19,8 +18,8 @@ export default function MicButton() {
     const { status: s } = useStore.getState()
     if (recordingRef.current || s === 'thinking' || !useStore.getState().sttReady) return
 
-    // Barge-in: if CVA is speaking, cut it off so the user can talk over it.
-    stopPlayback()
+    // Barge-in: if CVA is speaking, cut it off (and cancel the in-flight turn).
+    cancelActiveTurn()
 
     // Trigger / check the OS-level mic permission before capturing.
     const access = await window.cva.requestMic()

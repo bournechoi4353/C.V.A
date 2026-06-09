@@ -1,7 +1,9 @@
 import { app, BrowserWindow, ipcMain, session, systemPreferences } from 'electron'
 import { join } from 'node:path'
-import { ask, resetConversation, warm } from './cva'
-import { ensureTts, synthesize } from './tts'
+import { resetConversation, warm } from './cva'
+import { ensureTts } from './tts'
+import { streamTurn } from './pipeline'
+import { setToolEmitter } from './tools'
 
 function createWindow(): void {
   const win = new BrowserWindow({
@@ -23,6 +25,11 @@ function createWindow(): void {
 
   win.on('ready-to-show', () => win.show())
 
+  // Tools (weather card, timer alerts) push side-channel updates to this window.
+  setToolEmitter((channel, payload) => {
+    if (!win.isDestroyed()) win.webContents.send(channel, payload)
+  })
+
   // electron-vite sets ELECTRON_RENDERER_URL in dev; load the built file otherwise.
   if (process.env.ELECTRON_RENDERER_URL) {
     win.loadURL(process.env.ELECTRON_RENDERER_URL)
@@ -40,15 +47,28 @@ app.whenReady().then(() => {
     return permission === 'media'
   })
 
-  ipcMain.handle('cva:send', async (_event, text: string) => {
+  // Streaming turn: streams Claude's reply, synthesizes it sentence-by-sentence, and
+  // emits `cva:turn-text` (deltas) + `cva:turn-audio` (per-sentence audio) to the
+  // renderer. Resolves with the full text when the turn completes.
+  let cancelFlag = false
+  ipcMain.handle('cva:ask-stream', async (event, text: string) => {
+    cancelFlag = false
+    const send = (channel: string, payload: unknown) => {
+      if (!event.sender.isDestroyed()) event.sender.send(channel, payload)
+    }
     try {
-      const reply = await ask(text)
-      return { text: reply.text }
+      const full = await streamTurn(text, send, () => cancelFlag)
+      return { text: full }
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err)
-      console.error('[cva] ask failed:', message)
-      return { text: '', error: message }
+      console.error('[cva] streamTurn failed:', message)
+      return { error: message }
     }
+  })
+
+  // Barge-in: stop emitting audio/text for the in-flight turn.
+  ipcMain.handle('cva:cancel', () => {
+    cancelFlag = true
   })
 
   ipcMain.handle('cva:reset', () => {
@@ -66,17 +86,6 @@ app.whenReady().then(() => {
       return { ok: true }
     } catch (err) {
       return { ok: false, error: err instanceof Error ? err.message : String(err) }
-    }
-  })
-
-  // Synthesize speech for text → { samples: Float32Array, rate } or { error }.
-  ipcMain.handle('cva:speak', async (_event, text: string) => {
-    try {
-      return await synthesize(text)
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err)
-      console.error('[tts] synthesize failed:', message)
-      return { error: message }
     }
   })
 
