@@ -48,7 +48,8 @@ export default function StatusOrb() {
       // or a gentle idle breath.
       let target = getLevel()
       if (st === 'thinking') target = 0.35 + 0.35 * (0.5 + 0.5 * Math.sin(t * 5))
-      else if (st === 'idle') target = 0.12 + 0.06 * Math.sin(t * 1.5)
+      // Idle: gentle breath, but react to live mic level (e.g. while wake-listening).
+      else if (st === 'idle') target = Math.max(getLevel(), 0.12 + 0.06 * Math.sin(t * 1.5))
       smooth += (target - smooth) * 0.2
 
       ctx.clearRect(0, 0, SIZE, SIZE)

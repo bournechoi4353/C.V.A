@@ -8,6 +8,8 @@ import ChatInput from './ChatInput'
 import MicButton from './MicButton'
 import ToolChip from './ToolChip'
 import Toast from './Toast'
+import WakeToggle from './WakeToggle'
+import WakeControl from './WakeControl'
 
 const STATE_LABELS: Record<Status, string> = {
   idle: 'Standing by',
@@ -45,10 +47,14 @@ export default function HUD() {
       </main>
 
       <footer className="hud__bottom">
-        <MicButton />
+        <div className="hud__controls">
+          <WakeToggle />
+          <MicButton />
+        </div>
         <ChatInput />
       </footer>
 
+      <WakeControl />
       <Toast />
     </div>
   )

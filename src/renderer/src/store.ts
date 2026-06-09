@@ -26,6 +26,9 @@ interface CvaState {
   // Memory & profile
   profile: Profile
   memories: MemoryItem[]
+  // Wake word ("Hey computah") hands-free mode
+  wakeMode: boolean
+  wakeHeard: string | null // last thing the wake listener transcribed (for feedback)
   setStatus: (status: Status) => void
   addMessage: (message: Message) => void
   appendMessage: (id: string, delta: string) => void
@@ -40,6 +43,8 @@ interface CvaState {
   setToast: (toast: string | null) => void
   setProfile: (profile: Profile) => void
   setMemories: (memories: MemoryItem[]) => void
+  setWakeMode: (on: boolean) => void
+  setWakeHeard: (text: string | null) => void
 }
 
 export const useStore = create<CvaState>((set) => ({
@@ -55,6 +60,8 @@ export const useStore = create<CvaState>((set) => ({
   toast: null,
   profile: {},
   memories: [],
+  wakeMode: false,
+  wakeHeard: null,
   setStatus: (status) => set({ status }),
   addMessage: (message) => set((state) => ({ messages: [...state.messages, message] })),
   appendMessage: (id, delta) =>
@@ -75,4 +82,6 @@ export const useStore = create<CvaState>((set) => ({
   setToast: (toast) => set({ toast }),
   setProfile: (profile) => set({ profile }),
   setMemories: (memories) => set({ memories }),
+  setWakeMode: (wakeMode) => set({ wakeMode }),
+  setWakeHeard: (wakeHeard) => set({ wakeHeard }),
 }))

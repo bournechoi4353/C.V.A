@@ -79,8 +79,9 @@ src/
   preload/     contextBridge: window.cva.askStream() / .transcribe() / onTurnAudio() / …
   renderer/    React HUD
     src/
-      components/  HUD, StatusOrb (canvas orb), Captions, ClockWidget, SidePanel, TranscriptStrip, ChatInput, MicButton
+      components/  HUD, StatusOrb (canvas orb), Captions, SidePanel, ChatInput, MicButton, WakeToggle/WakeControl, Toast, ToolChip
       audio.ts        mic capture → mono 16kHz Float32 + live amplitude
+      wake.ts         "Hey computah" wake word: VAD + local detection
       ttsPlayback.ts  gapless Web Audio queue + orb amplitude
       level.ts        shared audio level (mic + TTS) → canvas orb
       conversation.ts streaming turn + barge-in (turn-generation guard)

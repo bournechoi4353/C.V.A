@@ -12,10 +12,11 @@ export default function MicButton() {
   const sttReady = useStore((s) => s.sttReady)
   const sttProgress = useStore((s) => s.sttProgress)
   const sttError = useStore((s) => s.sttError)
+  const wakeMode = useStore((s) => s.wakeMode)
 
   async function startRec() {
-    const { status: s } = useStore.getState()
-    if (recordingRef.current || s === 'thinking' || !useStore.getState().sttReady) return
+    const s = useStore.getState()
+    if (recordingRef.current || s.status === 'thinking' || !s.sttReady || s.wakeMode) return
 
     // Barge-in: if CVA is speaking, cut it off (and cancel the in-flight turn).
     cancelActiveTurn()
@@ -110,6 +111,7 @@ export default function MicButton() {
   let label: string
   if (!sttReady && sttError) label = '⚠️ voice model failed'
   else if (!sttReady) label = `Loading voice… ${Math.round(sttProgress)}%`
+  else if (wakeMode) label = '🎙 Hands-free is on'
   else if (recording) label = '● Listening — release to send'
   else label = '🎤 Hold to talk  (or hold Space)'
 
@@ -117,7 +119,7 @@ export default function MicButton() {
     <div className="mic-wrap">
       <button
         className={`mic ${recording ? 'mic--on' : ''}`}
-        disabled={busy || !sttReady}
+        disabled={busy || !sttReady || wakeMode}
         onPointerDown={() => startRef.current()}
         onPointerUp={() => stopRef.current()}
         onPointerLeave={() => {

@@ -198,19 +198,29 @@ account also contributes its own personalization (e.g. your email) on top of our
 
 ---
 
-## Phase 7 — Wake Word & Always-On  ·  ~Week 8
+## Phase 7 — Wake Word & Always-On  ·  DONE
 
-**Goal:** Drop the push-to-talk. Say "Hey Claude" from across the room.
+**Goal:** Drop the push-to-talk. Say **"Hey computah"** from across the room.
 
-- [ ] Integrate wake-word engine (Porcupine / openWakeWord).
-- [ ] Always-listening loop: wake word → chime + listen → process → respond → back to
-      idle.
-- [ ] Endpointing tuning so it doesn't cut you off or hang waiting.
-- [ ] Privacy: clear on-screen mic indicator; local-only wake detection (no audio
-      leaves device until wake fires).
+- [x] Wake detection — **no extra engine/key/native dep**: reuses the Whisper sidecar.
+      An always-on energy-gated VAD ([wake.ts](src/renderer/src/wake.ts)) captures each
+      utterance, transcribes it locally, and fuzzy-matches the wake phrase ("hey comp…").
+      (Chosen over Porcupine, which needs an AccessKey + a native module that'd risk the
+      same SIGTRAP crashes.)
+- [x] Always-listening loop: utterance → wake match → chime → command runs → back to idle.
+      Same-breath commands ("Hey computah, what's the weather?") run directly; a bare
+      wake word listens for the next utterance.
+- [x] Endpointing: ~0.7s trailing-silence VAD with a min-speech gate + pre-roll so it
+      doesn't clip "hey".
+- [x] Privacy: a clear on-screen indicator ("● Listening for 'Hey computah'") + macOS's
+      own mic indicator; wake detection is **fully local** — only the command is sent on.
 
-**Deliverable:** Hands-free operation. Walk up, say the word, have a conversation.
-**Acceptance:** Wake word fires reliably with few false positives in normal room noise.
+**Deliverable:** Hands-free. Toggle it on, say "Hey computah, …", have a conversation. ✅
+**Verified (real Whisper):** "Hey computah, what's the weather in Tokyo?" → Whisper renders
+"Hey, Komputa…" → wake fires, command "what's the weather in tokyo" extracted; non-wake
+speech is ignored. Build/typecheck/lint clean.
+_Limitations:_ ~2s to act (silence-detect + transcribe); while CVA is speaking, wake is
+ignored to avoid self-triggering on its own voice (no wake-barge-in yet).
 
 ---
 
