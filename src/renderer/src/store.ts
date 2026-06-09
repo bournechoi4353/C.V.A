@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { Weather } from './global'
+import type { Weather, Profile, MemoryItem } from './global'
 
 export type Status = 'idle' | 'listening' | 'thinking' | 'speaking'
 
@@ -23,6 +23,9 @@ interface CvaState {
   toolActivity: string | null // e.g. "Searching the web…"
   weather: Weather | null
   toast: string | null
+  // Memory & profile
+  profile: Profile
+  memories: MemoryItem[]
   setStatus: (status: Status) => void
   addMessage: (message: Message) => void
   appendMessage: (id: string, delta: string) => void
@@ -35,6 +38,8 @@ interface CvaState {
   setToolActivity: (activity: string | null) => void
   setWeather: (weather: Weather | null) => void
   setToast: (toast: string | null) => void
+  setProfile: (profile: Profile) => void
+  setMemories: (memories: MemoryItem[]) => void
 }
 
 export const useStore = create<CvaState>((set) => ({
@@ -48,6 +53,8 @@ export const useStore = create<CvaState>((set) => ({
   toolActivity: null,
   weather: null,
   toast: null,
+  profile: {},
+  memories: [],
   setStatus: (status) => set({ status }),
   addMessage: (message) => set((state) => ({ messages: [...state.messages, message] })),
   appendMessage: (id, delta) =>
@@ -66,4 +73,6 @@ export const useStore = create<CvaState>((set) => ({
   setToolActivity: (toolActivity) => set({ toolActivity }),
   setWeather: (weather) => set({ weather }),
   setToast: (toast) => set({ toast }),
+  setProfile: (profile) => set({ profile }),
+  setMemories: (memories) => set({ memories }),
 }))

@@ -26,6 +26,8 @@ const STATUS_TEXT: Record<Status, string> = {
 export default function SidePanel({ side }: { side: 'left' | 'right' }) {
   const status = useStore((s) => s.status)
   const messages = useStore((s) => s.messages)
+  const profile = useStore((s) => s.profile)
+  const memories = useStore((s) => s.memories)
   const sttReady = useStore((s) => s.sttReady)
   const sttProgress = useStore((s) => s.sttProgress)
   const sttError = useStore((s) => s.sttError)
@@ -51,6 +53,12 @@ export default function SidePanel({ side }: { side: 'left' | 'right' }) {
     }
   }
 
+  const profileLines = [
+    { text: profile.name ? `Name · ${profile.name}` : 'Name · tell me your name' },
+    ...(profile.location ? [{ text: `Location · ${profile.location}` }] : []),
+    ...(profile.units ? [{ text: `Units · ${profile.units}` }] : []),
+  ]
+
   if (side === 'left') {
     return (
       <aside className="panel panel--left">
@@ -66,6 +74,7 @@ export default function SidePanel({ side }: { side: 'left' | 'right' }) {
             { text: 'kokoro · af_heart' },
           ]}
         />
+        <Widget title="Profile" lines={profileLines} />
       </aside>
     )
   }
@@ -89,7 +98,14 @@ export default function SidePanel({ side }: { side: 'left' | 'right' }) {
         ]}
       />
       <Widget title="Weather" lines={weatherLines} />
-      <Widget title="Agenda" lines={[{ text: '— calendar: later —' }]} />
+      <Widget
+        title={`Memory · ${memories.length}`}
+        lines={
+          memories.length
+            ? memories.slice(-3).map((m) => ({ text: `• ${m.text.slice(0, 38)}` }))
+            : [{ text: 'Nothing remembered yet' }]
+        }
+      />
     </aside>
   )
 }

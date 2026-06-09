@@ -17,6 +17,18 @@ export interface TimerFire {
   rate: number | null
 }
 
+export interface Profile {
+  name?: string
+  location?: string
+  units?: 'imperial' | 'metric'
+  voice?: string
+}
+export interface MemoryItem {
+  id: string
+  text: string
+  createdAt: number
+}
+
 export interface CvaApi {
   askStream: (text: string) => Promise<{ text?: string; error?: string }>
   cancel: () => Promise<void>
@@ -31,6 +43,9 @@ export interface CvaApi {
   onTurnTool: (cb: (p: { name: string }) => void) => () => void
   onWeather: (cb: (p: Weather) => void) => () => void
   onTimerFire: (cb: (p: TimerFire) => void) => () => void
+  getProfile: () => Promise<{ profile: Profile; memories: MemoryItem[] }>
+  onProfile: (cb: (p: Profile) => void) => () => void
+  onMemory: (cb: (p: { memories: MemoryItem[] }) => void) => () => void
 }
 
 declare global {

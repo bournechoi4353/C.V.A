@@ -5,6 +5,7 @@ import { ensureTts } from './tts'
 import { streamTurn } from './pipeline'
 import { setToolEmitter } from './tools'
 import { ensureStt, transcribe, setSttProgress } from './stt'
+import { getProfile, listMemories } from './memory'
 
 function createWindow(): void {
   const win = new BrowserWindow({
@@ -80,6 +81,12 @@ app.whenReady().then(() => {
   ipcMain.handle('cva:reset', () => {
     resetConversation()
   })
+
+  // Initial profile + memories for the HUD (live updates arrive via cva:profile/cva:memory).
+  ipcMain.handle('cva:get-profile', () => ({
+    profile: getProfile(),
+    memories: listMemories(),
+  }))
 
   // Warm up the Claude session + speech models in the background so the first turn is fast.
   warm().catch((err) => console.error('[cva] warm failed:', err))

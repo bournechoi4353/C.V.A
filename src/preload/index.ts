@@ -60,6 +60,33 @@ const api = {
     ipcRenderer.on('cva:timer-fire', h)
     return () => ipcRenderer.removeListener('cva:timer-fire', h)
   },
+  /** Initial profile + memories for the HUD. */
+  getProfile: (): Promise<{ profile: Profile; memories: MemoryItem[] }> =>
+    ipcRenderer.invoke('cva:get-profile'),
+  /** Subscribe to profile changes (name/location/units). */
+  onProfile: (cb: (p: Profile) => void): (() => void) => {
+    const h = (_e: IpcRendererEvent, p: Profile) => cb(p)
+    ipcRenderer.on('cva:profile', h)
+    return () => ipcRenderer.removeListener('cva:profile', h)
+  },
+  /** Subscribe to memory list changes. */
+  onMemory: (cb: (p: { memories: MemoryItem[] }) => void): (() => void) => {
+    const h = (_e: IpcRendererEvent, p: { memories: MemoryItem[] }) => cb(p)
+    ipcRenderer.on('cva:memory', h)
+    return () => ipcRenderer.removeListener('cva:memory', h)
+  },
+}
+
+export interface Profile {
+  name?: string
+  location?: string
+  units?: 'imperial' | 'metric'
+  voice?: string
+}
+export interface MemoryItem {
+  id: string
+  text: string
+  createdAt: number
 }
 
 export interface Weather {

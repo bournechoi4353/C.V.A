@@ -173,21 +173,28 @@ return `isError` → Claude apologizes rather than crashing.
 
 ---
 
-## Phase 6 — Memory & Personality  ·  ~Week 7
+## Phase 6 — Memory & Personality  ·  DONE
 
 **Goal:** It remembers, and it has a consistent character.
 
-- [ ] System prompt defining the "Jarvis" persona (concise, dry wit, addresses you by
-      name).
-- [ ] Short-term memory: full conversation context with smart truncation/summarization.
-- [ ] Long-term memory: persist facts/preferences to SQLite; recall relevant ones into
-      context.
-- [ ] Prompt caching to cut latency/cost on the stable system prompt + tools.
-- [ ] User profile: name, location, units, preferred voice.
+- [x] Jarvis persona (concise, dry wit) + addresses you by name when known.
+- [x] Short-term memory: the persistent Agent SDK session keeps full conversation context
+      within a run (compaction handled by the SDK).
+- [x] Long-term memory: facts/preferences persisted to a **JSON file**
+      ([memory.ts](src/main/memory.ts)) in the app data dir — NOT SQLite (native modules
+      keep crashing under Electron's ABI). `remember` / `forget` / `set_profile` tools let
+      Claude save them; saved memories are loaded into the system prompt at session start.
+- [x] Prompt caching: persona is the static, cacheable prefix; memory is the dynamic
+      suffix, split with `SYSTEM_PROMPT_DYNAMIC_BOUNDARY`.
+- [x] User profile: name, location (used for weather), units — shown in a HUD **Profile**
+      widget; a **Memory** widget lists what it's remembered; the header greets you by name.
+- [ ] _Deferred:_ preferred-voice in profile (no clean NL → Kokoro-voice mapping yet).
 
-**Deliverable:** It greets you by name, remembers what you told it yesterday, stays in
-character.
-**Acceptance:** A fact stated in one session is recalled in the next.
+**Deliverable:** It greets you by name, remembers what you told it, stays in character. ✅
+**Verified (real subscription):** persistence round-trips across a simulated restart;
+Claude calls `set_profile`+`remember` when you share details; with memory loaded it recalls
+them ("You're Bourne, in Seattle. You take your coffee black."). Note: the subscription
+account also contributes its own personalization (e.g. your email) on top of our store.
 
 ---
 

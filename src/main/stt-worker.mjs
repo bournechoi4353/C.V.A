@@ -31,7 +31,13 @@ async function load() {
   send({ type: 'ready' })
 }
 
+// If the parent (Electron main) dies — e.g. an electron-vite hot-restart — our stdin
+// pipe closes; exit so we don't linger as an orphan holding the model in memory.
+process.stdin.on('end', () => process.exit(0))
+process.stdin.on('close', () => process.exit(0))
+
 const rl = readline.createInterface({ input: process.stdin })
+rl.on('close', () => process.exit(0))
 rl.on('line', async (line) => {
   if (!line.trim()) return
   let msg

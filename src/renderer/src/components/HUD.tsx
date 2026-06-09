@@ -18,13 +18,14 @@ const STATE_LABELS: Record<Status, string> = {
 
 export default function HUD() {
   const status = useStore((s) => s.status)
+  const name = useStore((s) => s.profile.name)
 
   return (
     <div className={`hud hud--${status}`}>
       <div className="hud__bg" />
       <header className="hud__top">
         <div className="hud__brand">
-          C.V.A<span> / Claude Voice Assistant</span>
+          C.V.A<span> / {name ? `${name}'s assistant` : 'Claude Voice Assistant'}</span>
         </div>
         <ClockWidget />
       </header>

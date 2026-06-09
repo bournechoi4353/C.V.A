@@ -71,7 +71,8 @@ src/
     index.ts   window + IPC handlers + mic permission
     cva.ts     Claude Agent SDK wrapper (subscription auth, persistent streaming session)
     pipeline.ts streaming turn: Claude deltas → sentence split → per-sentence Kokoro → audio
-    tools.ts   custom tools (get_time / get_weather / set_timer) + WebSearch allow-list
+    tools.ts   custom tools (time / weather / timer / remember / set_profile) + WebSearch
+    memory.ts  persistent long-term memory + user profile (JSON file)
     tts.ts     Kokoro text-to-speech (onnxruntime-node, native)
     stt.ts     spawns + drives the STT sidecar worker
     stt-worker.mjs  system-Node worker: Whisper small.en (native, crash-isolated)

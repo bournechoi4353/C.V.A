@@ -12,6 +12,7 @@
 
 import type { SDKUserMessage } from '@anthropic-ai/claude-agent-sdk'
 import { createToolServer, ALLOWED_TOOLS } from './tools'
+import { getMemoryContext } from './memory'
 
 const MODEL = 'claude-haiku-4-5' // fastest tier — testing voice-loop latency
 
@@ -21,9 +22,12 @@ Because your replies are spoken aloud, keep them short and natural — usually o
 sentences. Avoid markdown, bullet lists, code blocks, and emoji unless explicitly asked.
 If you don't know something, say so plainly.
 
-You have tools: get the current time, get the weather for a city, set timers, and search
-the web for current/factual information. Use them silently when they'd help — never list,
-name, or describe your tools, and don't narrate that you're using one. Just answer.
+You have tools: get the time, get the weather, set timers, search the web, remember facts
+about the user, and update their profile (name, location, units). Use them silently when
+they'd help — never list, name, or describe your tools, and don't narrate that you're using
+one. When the user shares their name, location, units, or a lasting preference, quietly save
+it (set_profile / remember) so you recall it next time. Address them by name when you know
+it. Just answer.
 Because you're speaking aloud, never include URLs, links, citations, or a "Sources:" list —
 state the answer in plain spoken words.`
 
@@ -90,7 +94,7 @@ let chain: Promise<unknown> = Promise.resolve() // serialize turns (one in fligh
 
 async function startSession(): Promise<void> {
   ensureSubscriptionAuth()
-  const { query } = await getSdk()
+  const { query, SYSTEM_PROMPT_DYNAMIC_BOUNDARY } = await getSdk()
   input = new InputStream()
   accumulated = ''
   pendingResolve = null
@@ -100,7 +104,8 @@ async function startSession(): Promise<void> {
     prompt: input,
     options: {
       model: MODEL,
-      systemPrompt: SYSTEM_PROMPT,
+      // Static persona (cacheable across sessions) → boundary → dynamic memory.
+      systemPrompt: [SYSTEM_PROMPT, SYSTEM_PROMPT_DYNAMIC_BOUNDARY, getMemoryContext()],
       mcpServers: { cva: createToolServer() }, // get_time / get_weather / set_timer
       allowedTools: ALLOWED_TOOLS, // our tools + built-in WebSearch
       permissionMode: 'dontAsk', // auto-allow the above, deny everything else (no prompts)

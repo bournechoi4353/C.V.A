@@ -6,6 +6,7 @@
 import { tool, createSdkMcpServer } from '@anthropic-ai/claude-agent-sdk'
 import { z } from 'zod'
 import { synthesize } from './tts'
+import { addMemory, removeMemory, setProfile, getProfile, listMemories } from './memory'
 
 // Emitter to push side-channel UI updates (weather card, timer alerts) to the renderer.
 type Emit = (channel: string, payload: unknown) => void
@@ -123,14 +124,68 @@ const setTimer = tool(
   },
 )
 
+const remember = tool(
+  'remember',
+  'Save a durable fact or preference about the user so you recall it in future sessions. ' +
+    'Use it when the user shares something worth remembering long-term (a preference, a ' +
+    'recurring detail, an important name). Do not use it for one-off requests.',
+  { text: z.string().describe('The fact to remember, phrased concisely in the third person') },
+  async ({ text }) => {
+    addMemory(text)
+    emit('cva:memory', { memories: listMemories() })
+    return { content: [{ type: 'text' as const, text: 'Noted — I will remember that.' }] }
+  },
+)
+
+const forget = tool(
+  'forget',
+  'Remove a remembered fact. Provide a word or phrase that matches the fact to forget.',
+  { query: z.string().describe('A word/phrase matching the memory to remove') },
+  async ({ query }) => {
+    const n = removeMemory(query)
+    emit('cva:memory', { memories: listMemories() })
+    return {
+      content: [
+        { type: 'text' as const, text: n > 0 ? `Forgotten.` : `I had nothing matching "${query}".` },
+      ],
+    }
+  },
+)
+
+const setProfileTool = tool(
+  'set_profile',
+  "Set the user's profile. Use when they tell you their name, where they are, or their " +
+    'preferred units. This persists across sessions.',
+  {
+    name: z.string().optional().describe('What to call the user'),
+    location: z.string().optional().describe('Their city, e.g. "Seattle"'),
+    units: z.enum(['imperial', 'metric']).optional().describe('Preferred units'),
+  },
+  async (args) => {
+    const profile = setProfile(args)
+    emit('cva:profile', profile)
+    return { content: [{ type: 'text' as const, text: 'Got it.' }] }
+  },
+)
+
 export function createToolServer() {
-  return createSdkMcpServer({ name: 'cva', version: '1.0.0', tools: [getTime, getWeather, setTimer] })
+  return createSdkMcpServer({
+    name: 'cva',
+    version: '1.0.0',
+    tools: [getTime, getWeather, setTimer, remember, forget, setProfileTool],
+  })
 }
+
+// Re-export for the initial renderer fetch.
+export { getProfile, listMemories }
 
 // Allow-list: our tools + the built-in web search. permissionMode 'dontAsk' denies the rest.
 export const ALLOWED_TOOLS = [
   'mcp__cva__get_time',
   'mcp__cva__get_weather',
   'mcp__cva__set_timer',
+  'mcp__cva__remember',
+  'mcp__cva__forget',
+  'mcp__cva__set_profile',
   'WebSearch',
 ]

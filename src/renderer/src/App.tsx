@@ -11,6 +11,8 @@ export default function App() {
   const setTtsError = useStore((s) => s.setTtsError)
   const setWeather = useStore((s) => s.setWeather)
   const setToast = useStore((s) => s.setToast)
+  const setProfile = useStore((s) => s.setProfile)
+  const setMemories = useStore((s) => s.setMemories)
 
   // Warm up the speech models in the background on launch. Retry a few times so a
   // hot-reload race (renderer up before main's IPC handlers register) self-heals.
@@ -54,6 +56,32 @@ export default function App() {
       offTimer()
     }
   }, [setWeather, setToast])
+
+  // Memory & profile: initial fetch (retried, to survive a hot-reload race) + live updates.
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      for (let i = 0; i < 6; i++) {
+        try {
+          const { profile, memories } = await window.cva.getProfile()
+          if (!cancelled) {
+            setProfile(profile)
+            setMemories(memories)
+          }
+          return
+        } catch {
+          await new Promise((r) => setTimeout(r, 400))
+        }
+      }
+    })()
+    const offProfile = window.cva.onProfile((p) => setProfile(p))
+    const offMemory = window.cva.onMemory(({ memories }) => setMemories(memories))
+    return () => {
+      cancelled = true
+      offProfile()
+      offMemory()
+    }
+  }, [setProfile, setMemories])
 
   return <HUD />
 }
