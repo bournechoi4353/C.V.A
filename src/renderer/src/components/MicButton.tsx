@@ -1,6 +1,5 @@
 import { useEffect, useRef } from 'react'
 import { Recorder } from '../audio'
-import { transcribe } from '../stt'
 import { sendUserText, cancelActiveTurn } from '../conversation'
 import { setLevel } from '../level'
 import { useStore } from '../store'
@@ -56,7 +55,13 @@ export default function MicButton() {
 
     try {
       const audio = await rec.stop()
-      const text = await transcribe(audio)
+      const res = await window.cva.transcribe(audio)
+      const text = (res.text ?? '').trim()
+      if (res.error) {
+        useStore.getState().setSttError(res.error)
+        useStore.getState().setStatus('idle')
+        return
+      }
       if (!text) {
         useStore.getState().setStatus('idle')
         return

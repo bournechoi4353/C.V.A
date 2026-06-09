@@ -60,7 +60,11 @@ export default function SidePanel({ side }: { side: 'left' | 'right' }) {
         />
         <Widget
           title="Model"
-          lines={[{ text: 'claude-haiku-4-5' }, { text: 'kokoro · af_heart' }]}
+          lines={[
+            { text: 'claude-haiku-4-5' },
+            { text: 'whisper-small.en' },
+            { text: 'kokoro · af_heart' },
+          ]}
         />
       </aside>
     )

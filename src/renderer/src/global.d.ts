@@ -23,6 +23,9 @@ export interface CvaApi {
   reset: () => Promise<void>
   requestMic: () => Promise<MicAccess>
   ttsEnsure: () => Promise<{ ok: boolean; error?: string }>
+  sttEnsure: () => Promise<{ ok: boolean; error?: string }>
+  transcribe: (samples: Float32Array) => Promise<{ text?: string; error?: string }>
+  onSttProgress: (cb: (p: { progress: number }) => void) => () => void
   onTurnText: (cb: (p: { delta: string }) => void) => () => void
   onTurnAudio: (cb: (p: { seq: number; samples: Float32Array; rate: number }) => void) => () => void
   onTurnTool: (cb: (p: { name: string }) => void) => () => void

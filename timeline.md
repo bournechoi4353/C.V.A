@@ -27,7 +27,7 @@ mode, mobile app, smart-home hardware control.
 |---|---|---|
 | App shell | **Electron + React + TypeScript** (full-screen kiosk-capable desktop app) | Tauri (lighter), Next.js web app, Raspberry Pi kiosk |
 | Audio capture | Web Audio API / `MediaRecorder` | `node-record-lpcm16` (native) |
-| Speech-to-text (STT) | **Local Whisper** (transformers.js, `whisper-tiny.en`) — free, offline, no API key | Deepgram, OpenAI Whisper API, `whisper.cpp` |
+| Speech-to-text (STT) | **Local Whisper** `small.en` (transformers.js) in a **system-Node sidecar** — free, offline, no key, native speed | Deepgram, OpenAI Whisper API, `whisper.cpp` |
 | Brain | **Claude API** (`claude-opus-4-8` for quality / `claude-sonnet-4-6` for speed) | — |
 | Text-to-speech (TTS) | **Kokoro** (kokoro-js, local neural, `bm_george` voice) — free, offline, no key | ElevenLabs, OpenAI TTS, system `say` |
 | Wake word | **Picovoice Porcupine** | openWakeWord (local), push-to-talk only |
@@ -63,8 +63,12 @@ mode, mobile app, smart-home hardware control.
 
 - [x] Mic permission + audio capture pipeline (Electron permission handler + getUserMedia).
 - [x] Push-to-talk (hold the mic button **or** hold Spacebar): start/stop capture.
-- [x] **Local** STT — Whisper (`whisper-tiny.en`) via transformers.js, fully offline,
-      no API key. Transcribes on release. (Chosen over paid Deepgram to keep it free.)
+- [x] **Local** STT — Whisper via transformers.js, fully offline, no API key. Transcribes
+      on release. (Chosen over paid Deepgram to keep it free.) **Upgraded** from `tiny.en`
+      (WASM) to `small.en` running natively in a **system-Node sidecar process** — much
+      better accuracy at native speed (~1.7s warm). Native STT can't run in Electron's own
+      runtime (onnxruntime-node SIGTRAPs on Whisper), so the worker is a separate process,
+      which also crash-isolates it.
 - [x] HUD "listening" state: orb glows amber and pulses with real mic amplitude.
 - [ ] _Deferred:_ live interim transcripts + VAD auto-endpointing (Whisper is
       transcribe-on-release; live streaming + wake-word endpointing come in Phase 7).

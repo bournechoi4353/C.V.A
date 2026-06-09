@@ -30,9 +30,10 @@ A window opens with the HUD. Type in the box and press Enter, **or** talk to it:
 
 ## Voice in (Phase 2)
 
-Speech-to-text runs **locally** with Whisper via transformers.js — no API key, no cloud,
-free. On first launch it downloads a ~80MB model from Hugging Face (cached after; the
-System panel shows loading progress).
+Speech-to-text runs **locally** with Whisper (`small.en`) via transformers.js — no API key,
+no cloud, free. It runs natively in a small **sidecar Node process** (Whisper can't run in
+Electron's own runtime without crashing), giving good accuracy at ~1.7s. On first launch it
+downloads a ~250MB model (cached after; the System panel shows loading progress).
 
 - **Hold the mic button** (or **hold the Spacebar** when not typing), speak, then release.
 - The orb glows amber and pulses with your voice while listening.
@@ -72,12 +73,13 @@ src/
     pipeline.ts streaming turn: Claude deltas → sentence split → per-sentence Kokoro → audio
     tools.ts   custom tools (get_time / get_weather / set_timer) + WebSearch allow-list
     tts.ts     Kokoro text-to-speech (onnxruntime-node, native)
-  preload/     contextBridge: window.cva.askStream() / .cancel() / onTurnAudio() / …
+    stt.ts     spawns + drives the STT sidecar worker
+    stt-worker.mjs  system-Node worker: Whisper small.en (native, crash-isolated)
+  preload/     contextBridge: window.cva.askStream() / .transcribe() / onTurnAudio() / …
   renderer/    React HUD
     src/
       components/  HUD, StatusOrb (canvas orb), Captions, ClockWidget, SidePanel, TranscriptStrip, ChatInput, MicButton
       audio.ts        mic capture → mono 16kHz Float32 + live amplitude
-      stt.ts          local Whisper (transformers.js) speech-to-text
       ttsPlayback.ts  gapless Web Audio queue + orb amplitude
       level.ts        shared audio level (mic + TTS) → canvas orb
       conversation.ts streaming turn + barge-in (turn-generation guard)

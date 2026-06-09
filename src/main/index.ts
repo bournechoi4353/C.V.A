@@ -4,6 +4,7 @@ import { resetConversation, warm } from './cva'
 import { ensureTts } from './tts'
 import { streamTurn } from './pipeline'
 import { setToolEmitter } from './tools'
+import { ensureStt, transcribe, setSttProgress } from './stt'
 
 function createWindow(): void {
   const win = new BrowserWindow({
@@ -28,6 +29,11 @@ function createWindow(): void {
   // Tools (weather card, timer alerts) push side-channel updates to this window.
   setToolEmitter((channel, payload) => {
     if (!win.isDestroyed()) win.webContents.send(channel, payload)
+  })
+
+  // STT model download progress → renderer.
+  setSttProgress((progress) => {
+    if (!win.isDestroyed()) win.webContents.send('cva:stt-progress', { progress })
   })
 
   // electron-vite sets ELECTRON_RENDERER_URL in dev; load the built file otherwise.
@@ -75,9 +81,29 @@ app.whenReady().then(() => {
     resetConversation()
   })
 
-  // Warm up the Claude session + TTS model in the background so the first turn is fast.
+  // Warm up the Claude session + speech models in the background so the first turn is fast.
   warm().catch((err) => console.error('[cva] warm failed:', err))
   ensureTts().catch((err) => console.error('[tts] warmup failed:', err))
+  ensureStt().catch((err) => console.error('[stt] warmup failed:', err))
+
+  // Ensure the STT worker/model is ready; returns ok/error to the renderer.
+  ipcMain.handle('cva:stt-ensure', async () => {
+    try {
+      await ensureStt()
+      return { ok: true }
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : String(err) }
+    }
+  })
+
+  // Transcribe mono 16kHz Float32 audio → { text } or { error }.
+  ipcMain.handle('cva:transcribe', async (_event, samples: Float32Array) => {
+    try {
+      return { text: await transcribe(samples) }
+    } catch (err) {
+      return { error: err instanceof Error ? err.message : String(err) }
+    }
+  })
 
   // Ensure the TTS model is loaded; returns ok/error to the renderer.
   ipcMain.handle('cva:tts-ensure', async () => {

@@ -16,6 +16,18 @@ const api = {
   /** Warm up the TTS model. */
   ttsEnsure: (): Promise<{ ok: boolean; error?: string }> =>
     ipcRenderer.invoke('cva:tts-ensure'),
+  /** Warm up the STT model/worker. */
+  sttEnsure: (): Promise<{ ok: boolean; error?: string }> =>
+    ipcRenderer.invoke('cva:stt-ensure'),
+  /** Transcribe mono 16kHz Float32 audio → { text } or { error }. */
+  transcribe: (samples: Float32Array): Promise<{ text?: string; error?: string }> =>
+    ipcRenderer.invoke('cva:transcribe', samples),
+  /** Subscribe to STT model download progress (0..100). */
+  onSttProgress: (cb: (p: { progress: number }) => void): (() => void) => {
+    const h = (_e: IpcRendererEvent, p: { progress: number }) => cb(p)
+    ipcRenderer.on('cva:stt-progress', h)
+    return () => ipcRenderer.removeListener('cva:stt-progress', h)
+  },
 
   /** Subscribe to streaming text deltas. Returns an unsubscribe fn. */
   onTurnText: (cb: (p: { delta: string }) => void): (() => void) => {
