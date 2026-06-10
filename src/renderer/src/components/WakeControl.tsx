@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { WakeListener, detectWake, chime } from '../wake'
+import { WakeListener, detectWake, chime, looksLikeNoise } from '../wake'
 import { sendUserText } from '../conversation'
 import { setLevel } from '../level'
 import { useStore } from '../store'
@@ -38,7 +38,7 @@ export default function WakeControl() {
         if (useStore.getState().status !== 'idle') return
         const res = await window.cva.transcribe(audio)
         const text = (res.text ?? '').trim()
-        if (!text) return
+        if (!text || looksLikeNoise(text)) return
         useStore.getState().setWakeHeard(text) // show what it heard (debug finickiness)
 
         if (awaitingRef.current) {

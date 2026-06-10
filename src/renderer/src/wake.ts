@@ -7,10 +7,18 @@
 const SAMPLE_RATE = 16000
 const BUFFER = 2048 // 128ms frames
 const FRAME_MS = (BUFFER / SAMPLE_RATE) * 1000
-const ONSET_RMS = 0.012 // speech start threshold (sensitive; min-speech gate rejects blips)
 const HANG_FRAMES = Math.round(650 / FRAME_MS) // ~0.65s of silence ends an utterance
 const MIN_SPEECH_FRAMES = Math.round(250 / FRAME_MS) // ignore < ~250ms blips
 const MAX_FRAMES = Math.round(10000 / FRAME_MS) // cap utterances at ~10s
+const PREROLL_FRAMES = 4 // ~512ms captured before onset, so "hey" isn't clipped
+
+// Adaptive thresholds — derived from a running ambient-noise estimate so it self-tunes to
+// a quiet vs. noisy room. Onset (start) is well above the floor; release (continue) is
+// lower for hysteresis so speech isn't chopped mid-word.
+const ABS_MIN = 0.008
+const ONSET_MULT = 2.2
+const RELEASE_MULT = 1.4
+const NOISE_CAP = 0.04 // don't let a loud room push us deaf
 
 function concat(frames: Float32Array[]): Float32Array {
   let len = 0
@@ -28,6 +36,20 @@ function concat(frames: Float32Array[]): Float32Array {
 // (computer, computa, computah, komputa, commuter, …). Broad on purpose — wake-misses
 // are more annoying than the rare false positive, and we only act while idle.
 const WAKE_RE = /\b(?:hey|hay|hi|ay|he|yo|okay|ok|a)\s+(?:comp|komp|cump|kahmp|comm|kom)\w*/i
+
+// Whisper hallucinates these on silence/noise — ignore them.
+const NOISE_OUT = new Set([
+  'you', 'thank you', 'thanks for watching', 'thank you for watching',
+  'thank you very much', 'bye', 'bye bye', 'the end', 'so',
+])
+export function looksLikeNoise(text: string): boolean {
+  const t = text
+    .toLowerCase()
+    .replace(/[^a-z\s]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+  return t.length < 2 || NOISE_OUT.has(t)
+}
 
 export function detectWake(text: string): { woke: boolean; command: string } {
   const norm = text
@@ -73,6 +95,7 @@ export class WakeListener {
   private speech = 0
   private frames: Float32Array[] = []
   private preroll: Float32Array[] = []
+  private noiseFloor = 0.012
 
   /** Live amplitude (0..1) for the UI. */
   onLevel?: (level: number) => void
@@ -96,22 +119,31 @@ export class WakeListener {
       const rms = Math.sqrt(sum / input.length)
       this.onLevel?.(Math.min(1, rms * 3))
 
-      // keep a 2-frame pre-roll so we don't clip the start of "hey"
+      // pre-roll buffer so we don't clip the start of "hey"
       this.preroll.push(frame)
-      if (this.preroll.length > 2) this.preroll.shift()
+      if (this.preroll.length > PREROLL_FRAMES) this.preroll.shift()
 
-      if (rms > ONSET_RMS) {
-        if (!this.speaking) {
+      const onset = Math.max(ABS_MIN, this.noiseFloor * ONSET_MULT)
+      const release = Math.max(ABS_MIN * 0.8, this.noiseFloor * RELEASE_MULT)
+
+      if (!this.speaking) {
+        // Track the ambient floor: drop fast toward quiet, rise slowly. Capped.
+        const k = rms < this.noiseFloor ? 0.25 : 0.02
+        this.noiseFloor = Math.min(this.noiseFloor + (rms - this.noiseFloor) * k, NOISE_CAP)
+        if (rms > onset) {
           this.speaking = true
           this.frames = [...this.preroll]
-        } else {
-          this.frames.push(frame)
+          this.speech = 1
+          this.silence = 0
         }
-        this.silence = 0
-        this.speech++
-      } else if (this.speaking) {
+      } else {
         this.frames.push(frame)
-        this.silence++
+        if (rms > release) {
+          this.silence = 0
+          this.speech++
+        } else {
+          this.silence++
+        }
         if (this.silence >= HANG_FRAMES || this.frames.length >= MAX_FRAMES) {
           this.endUtterance()
         }
