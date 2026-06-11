@@ -59,6 +59,16 @@ export default function SidePanel({ side }: { side: 'left' | 'right' }) {
     ...(profile.units ? [{ text: `Units · ${profile.units}` }] : []),
   ]
 
+  const usage = useStore((s) => s.usage)
+  const fmtTok = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(1)}k` : `${n}`)
+  const usageLines = usage.turns
+    ? [
+        { text: `Turns · ${usage.turns}` },
+        { text: `Tokens · ${fmtTok(usage.inTokens)} in / ${fmtTok(usage.outTokens)} out` },
+        ...(usage.costUsd > 0 ? [{ text: `API-equiv · $${usage.costUsd.toFixed(3)}` }] : []),
+      ]
+    : [{ text: 'No Claude turns yet' }]
+
   if (side === 'left') {
     return (
       <aside className="panel panel--left">
@@ -67,13 +77,14 @@ export default function SidePanel({ side }: { side: 'left' | 'right' }) {
           lines={[{ text: 'Renderer · online', dot: 'ok' }, voiceIn, voiceOut]}
         />
         <Widget
-          title="Model"
+          title="Models"
           lines={[
             { text: 'claude-haiku-4-5' },
-            { text: 'whisper-small.en' },
+            { text: 'moonshine-base' },
             { text: 'kokoro · af_heart' },
           ]}
         />
+        <Widget title="Session" lines={usageLines} />
         <Widget title="Profile" lines={profileLines} />
       </aside>
     )

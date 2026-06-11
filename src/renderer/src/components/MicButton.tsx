@@ -109,11 +109,11 @@ export default function MicButton() {
   const busy = status === 'thinking'
 
   let label: string
-  if (!sttReady && sttError) label = '⚠️ voice model failed'
-  else if (!sttReady) label = `Loading voice… ${Math.round(sttProgress)}%`
-  else if (wakeMode) label = '🎙 Hands-free is on'
-  else if (recording) label = '● Listening — release to send'
-  else label = '🎤 Hold to talk  (or hold Space)'
+  if (!sttReady && sttError) label = 'Voice model failed'
+  else if (!sttReady) label = `Loading voice · ${Math.round(sttProgress)}%`
+  else if (wakeMode) label = 'Hands-free on'
+  else if (recording) label = '● Rec — release to send'
+  else label = 'Hold to talk · Space'
 
   return (
     <div className="mic-wrap">

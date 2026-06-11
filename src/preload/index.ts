@@ -35,9 +35,9 @@ const api = {
     ipcRenderer.on('cva:turn-text', h)
     return () => ipcRenderer.removeListener('cva:turn-text', h)
   },
-  /** Subscribe to per-sentence synthesized audio. Returns an unsubscribe fn. */
-  onTurnAudio: (cb: (p: { seq: number; samples: Float32Array; rate: number }) => void): (() => void) => {
-    const h = (_e: IpcRendererEvent, p: { seq: number; samples: Float32Array; rate: number }) =>
+  /** Subscribe to per-sentence synthesized audio (Int16 PCM). Returns an unsubscribe fn. */
+  onTurnAudio: (cb: (p: { seq: number; samples: Int16Array; rate: number }) => void): (() => void) => {
+    const h = (_e: IpcRendererEvent, p: { seq: number; samples: Int16Array; rate: number }) =>
       cb(p)
     ipcRenderer.on('cva:turn-audio', h)
     return () => ipcRenderer.removeListener('cva:turn-audio', h)
@@ -75,6 +75,12 @@ const api = {
     ipcRenderer.on('cva:memory', h)
     return () => ipcRenderer.removeListener('cva:memory', h)
   },
+  /** Subscribe to per-turn token usage (for the Session widget). */
+  onUsage: (cb: (p: TurnUsage) => void): (() => void) => {
+    const h = (_e: IpcRendererEvent, p: TurnUsage) => cb(p)
+    ipcRenderer.on('cva:usage', h)
+    return () => ipcRenderer.removeListener('cva:usage', h)
+  },
 }
 
 export interface Profile {
@@ -101,8 +107,16 @@ export interface TimerFire {
   id: string
   label: string | null
   phrase: string
-  samples: Float32Array | null
+  samples: Int16Array | null
   rate: number | null
+}
+export interface TurnUsage {
+  inputTokens: number
+  outputTokens: number
+  cacheRead: number
+  cacheWrite: number
+  costUsd: number
+  durationMs: number
 }
 
 contextBridge.exposeInMainWorld('cva', api)

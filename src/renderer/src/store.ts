@@ -1,5 +1,12 @@
 import { create } from 'zustand'
-import type { Weather, Profile, MemoryItem } from './global'
+import type { Weather, Profile, MemoryItem, TurnUsage } from './global'
+
+export interface SessionUsage {
+  turns: number
+  inTokens: number // input incl. cache reads/writes
+  outTokens: number
+  costUsd: number
+}
 
 export type Status = 'idle' | 'listening' | 'thinking' | 'speaking'
 
@@ -26,9 +33,11 @@ interface CvaState {
   // Memory & profile
   profile: Profile
   memories: MemoryItem[]
-  // Wake word ("Hey computah") hands-free mode
+  // Wake word ("Claude") hands-free mode
   wakeMode: boolean
   wakeHeard: string | null // last thing the wake listener transcribed (for feedback)
+  usage: SessionUsage // cumulative Claude usage this session
+  addUsage: (u: TurnUsage) => void
   setStatus: (status: Status) => void
   addMessage: (message: Message) => void
   appendMessage: (id: string, delta: string) => void
@@ -62,6 +71,16 @@ export const useStore = create<CvaState>((set) => ({
   memories: [],
   wakeMode: false,
   wakeHeard: null,
+  usage: { turns: 0, inTokens: 0, outTokens: 0, costUsd: 0 },
+  addUsage: (u) =>
+    set((s) => ({
+      usage: {
+        turns: s.usage.turns + 1,
+        inTokens: s.usage.inTokens + u.inputTokens + u.cacheRead + u.cacheWrite,
+        outTokens: s.usage.outTokens + u.outputTokens,
+        costUsd: s.usage.costUsd + u.costUsd,
+      },
+    })),
   setStatus: (status) => set({ status }),
   addMessage: (message) => set((state) => ({ messages: [...state.messages, message] })),
   appendMessage: (id, delta) =>

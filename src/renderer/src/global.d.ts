@@ -13,7 +13,7 @@ export interface TimerFire {
   id: string
   label: string | null
   phrase: string
-  samples: Float32Array | null
+  samples: Int16Array | null
   rate: number | null
 }
 
@@ -22,6 +22,14 @@ export interface Profile {
   location?: string
   units?: 'imperial' | 'metric'
   voice?: string
+}
+export interface TurnUsage {
+  inputTokens: number
+  outputTokens: number
+  cacheRead: number
+  cacheWrite: number
+  costUsd: number
+  durationMs: number
 }
 export interface MemoryItem {
   id: string
@@ -39,13 +47,14 @@ export interface CvaApi {
   transcribe: (samples: Float32Array) => Promise<{ text?: string; error?: string }>
   onSttProgress: (cb: (p: { progress: number }) => void) => () => void
   onTurnText: (cb: (p: { delta: string }) => void) => () => void
-  onTurnAudio: (cb: (p: { seq: number; samples: Float32Array; rate: number }) => void) => () => void
+  onTurnAudio: (cb: (p: { seq: number; samples: Int16Array; rate: number }) => void) => () => void
   onTurnTool: (cb: (p: { name: string }) => void) => () => void
   onWeather: (cb: (p: Weather) => void) => () => void
   onTimerFire: (cb: (p: TimerFire) => void) => () => void
   getProfile: () => Promise<{ profile: Profile; memories: MemoryItem[] }>
   onProfile: (cb: (p: Profile) => void) => () => void
   onMemory: (cb: (p: { memories: MemoryItem[] }) => void) => () => void
+  onUsage: (cb: (p: TurnUsage) => void) => () => void
 }
 
 declare global {

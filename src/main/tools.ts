@@ -5,14 +5,22 @@
 
 import { tool, createSdkMcpServer } from '@anthropic-ai/claude-agent-sdk'
 import { z } from 'zod'
-import { synthesize } from './tts'
+import { synthesize, floatToInt16 } from './tts'
 import { addMemory, removeMemory, setProfile, getProfile, listMemories } from './memory'
+// Hardened place-name resolver ("Washington DC", "Paris, France") with caching —
+// shared plain-JS module so the test harness (scripts/test-geocode.mjs) exercises
+// exactly what ships.
+import { geocode } from '../shared/geocode.mjs'
 
 // Emitter to push side-channel UI updates (weather card, timer alerts) to the renderer.
 type Emit = (channel: string, payload: unknown) => void
 let emit: Emit = () => {}
 export function setToolEmitter(fn: Emit): void {
   emit = fn
+}
+/** Push a side-channel UI update (used by the fast path as well as the tools here). */
+export function emitUi(channel: string, payload: unknown): void {
+  emit(channel, payload)
 }
 
 const WEATHER_CODES: Record<number, string> = {
@@ -25,20 +33,14 @@ const WEATHER_CODES: Record<number, string> = {
   96: 'thunderstorm with hail', 99: 'thunderstorm with hail',
 }
 
-async function fetchWeather(location: string) {
-  const geoRes = await fetch(
-    `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(location)}&count=1&language=en&format=json`,
-  )
-  const geo = (await geoRes.json()) as {
-    results?: Array<{ name: string; admin1?: string; country?: string; latitude: number; longitude: number }>
-  }
-  const place = geo.results?.[0]
-  if (!place) throw new Error(`Couldn't find a place called "${location}".`)
+export async function fetchWeather(location: string) {
+  const place = await geocode(location)
 
   const wRes = await fetch(
     `https://api.open-meteo.com/v1/forecast?latitude=${place.latitude}&longitude=${place.longitude}` +
       `&current=temperature_2m,apparent_temperature,weather_code,wind_speed_10m,relative_humidity_2m` +
       `&temperature_unit=fahrenheit&wind_speed_unit=mph`,
+    { signal: AbortSignal.timeout(8000) },
   )
   const wj = (await wRes.json()) as {
     current: {
@@ -74,8 +76,15 @@ const getTime = tool(
 
 const getWeather = tool(
   'get_weather',
-  'Get the current weather for a city. Use when the user asks about weather or temperature.',
-  { location: z.string().describe('City name, e.g. "San Francisco" or "Paris"') },
+  'Get the current weather for a city. Call this whenever the user asks about weather, ' +
+    'temperature, or conditions — pass the place exactly as they said it.',
+  {
+    location: z
+      .string()
+      .describe(
+        'City, optionally with state or country, e.g. "San Francisco", "Washington DC", "Paris, France"',
+      ),
+  },
   async ({ location }) => {
     try {
       const w = await fetchWeather(location)
@@ -98,6 +107,29 @@ const getWeather = tool(
 )
 
 let timerSeq = 0
+/** Start a countdown; on expiry CVA speaks an alert + shows a toast. Returns a spoken
+ *  confirmation. Shared by the set_timer tool and the local fast path. */
+export function startTimer(seconds: number, label?: string | null): string {
+  const id = `t${timerSeq++}`
+  const secs = Math.max(1, Math.round(seconds))
+  setTimeout(async () => {
+    const phrase = label ? `Your ${label} timer is done.` : 'Your timer is done.'
+    try {
+      const { samples, rate } = await synthesize(phrase)
+      emit('cva:timer-fire', { id, label: label ?? null, phrase, samples: floatToInt16(samples), rate })
+    } catch {
+      emit('cva:timer-fire', { id, label: label ?? null, phrase, samples: null, rate: null })
+    }
+  }, secs * 1000)
+  const pretty =
+    secs >= 3600 && secs % 3600 === 0
+      ? `${secs / 3600} hour${secs === 3600 ? '' : 's'}`
+      : secs >= 60
+        ? `${Math.round(secs / 60)} minute${Math.round(secs / 60) === 1 ? '' : 's'}`
+        : `${secs} seconds`
+  return `Timer set for ${pretty}${label ? `, for the ${label}` : ''}.`
+}
+
 const setTimer = tool(
   'set_timer',
   'Set a countdown timer. Use when the user asks to set a timer or be reminded in N seconds/minutes.',
@@ -106,21 +138,8 @@ const setTimer = tool(
     label: z.string().optional().describe('Optional short label, e.g. "pasta"'),
   },
   async ({ seconds, label }) => {
-    const id = `t${timerSeq++}`
-    const secs = Math.max(1, Math.round(seconds))
-    setTimeout(async () => {
-      const phrase = label ? `Your ${label} timer is done.` : 'Your timer is done.'
-      try {
-        const { samples, rate } = await synthesize(phrase)
-        emit('cva:timer-fire', { id, label: label ?? null, phrase, samples, rate })
-      } catch {
-        emit('cva:timer-fire', { id, label: label ?? null, phrase, samples: null, rate: null })
-      }
-    }, secs * 1000)
-    const pretty = secs >= 60 ? `${Math.round(secs / 60)} minute(s)` : `${secs} seconds`
-    return {
-      content: [{ type: 'text' as const, text: `Timer set for ${pretty}${label ? ` (${label})` : ''}.` }],
-    }
+    const text = startTimer(seconds, label)
+    return { content: [{ type: 'text' as const, text }] }
   },
 )
 

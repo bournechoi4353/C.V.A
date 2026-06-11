@@ -22,9 +22,12 @@ function toolLabel(name: string): string | null {
   return null // internal tools (e.g. tool search) — no UI noise
 }
 
-export async function sendUserText(text: string): Promise<void> {
+/** Send a user turn. Resolves with the assistant's final reply text once it has been
+ *  spoken (audio drained), or null on error/barge-in — so callers (e.g. the wake
+ *  controller's follow-up mode) can react to what was actually said. */
+export async function sendUserText(text: string): Promise<string | null> {
   const trimmed = text.trim()
-  if (!trimmed) return
+  if (!trimmed) return null
 
   const myTurn = ++activeTurn
   const isCurrent = () => activeTurn === myTurn
@@ -56,19 +59,24 @@ export async function sendUserText(text: string): Promise<void> {
 
   try {
     const res = await window.cva.askStream(trimmed)
-    if (!isCurrent()) return
+    if (!isCurrent()) return null
     if (res?.error) {
-      useStore.getState().setMessageText(asstId, `⚠️ ${res.error}`)
-    } else if (typeof res?.text === 'string') {
+      useStore.getState().setMessageText(asstId, `⚠ ${res.error}`)
+      await audioQueueIdle() // let the spoken error-fallback finish before going idle
+      return null
+    }
+    if (typeof res?.text === 'string') {
       useStore.getState().setMessageText(asstId, res.text) // finalize with the full text
     }
     await audioQueueIdle() // stay "speaking" until the queue drains
+    return isCurrent() && typeof res?.text === 'string' ? res.text : null
   } catch (err) {
     if (isCurrent()) {
       useStore
         .getState()
         .setMessageText(asstId, `⚠️ ${err instanceof Error ? err.message : String(err)}`)
     }
+    return null
   } finally {
     offText()
     offAudio()

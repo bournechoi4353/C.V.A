@@ -15,9 +15,9 @@ export default function WakeToggle() {
         className={`wake ${wakeMode ? 'wake--on' : ''}`}
         disabled={!sttReady}
         onClick={() => setWakeMode(!wakeMode)}
-        title={'Respond to “Hey computah” hands-free'}
+        title={'Respond to “Claude” hands-free'}
       >
-        {wakeMode ? '● Listening for “Hey computah”' : '○ Hands-free off'}
+        {wakeMode ? '● Listening for “Claude”' : '○ Hands-free off'}
       </button>
       {wakeMode && wakeHeard && (
         <div className="wake-heard">heard: “{wakeHeard.slice(0, 48)}”</div>

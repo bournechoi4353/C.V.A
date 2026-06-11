@@ -18,7 +18,7 @@ export default function ChatInput() {
     <div className="input">
       <input
         className="input__field"
-        placeholder={busy ? 'CVA is thinking…' : 'Type to talk to CVA…'}
+        placeholder={busy ? 'Thinking…' : 'Type a command…'}
         value={value}
         disabled={busy}
         onChange={(e) => setValue(e.target.value)}

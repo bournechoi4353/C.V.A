@@ -7,6 +7,7 @@ import { join } from 'node:path'
 import { writeFile, unlink } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { app } from 'electron'
+import { log } from './logger'
 
 let worker: ChildProcess | null = null
 let readyPromise: Promise<void> | null = null
@@ -31,6 +32,7 @@ function startWorker(): Promise<void> {
     const w = spawn('node', [workerPath()], {
       cwd: app.getAppPath(),
       stdio: ['pipe', 'pipe', 'pipe'],
+      env: { ...process.env }, // CVA_STT_MODEL (if set) flows through to the worker
     })
     worker = w
 
@@ -62,10 +64,10 @@ function startWorker(): Promise<void> {
       }
     })
 
-    w.stderr?.on('data', (d: Buffer) => console.error('[stt-worker]', d.toString().trim()))
+    w.stderr?.on('data', (d: Buffer) => log('stt-worker', d.toString().trim()))
     w.on('error', (e) => reject(e))
     w.on('exit', (code) => {
-      console.error('[stt-worker] exited with code', code)
+      log('stt-worker', `exited with code ${code} — will respawn on next use`)
       worker = null
       readyPromise = null
       for (const p of pending.values()) p.reject(new Error('STT worker exited'))
@@ -80,19 +82,37 @@ export async function ensureStt(): Promise<void> {
   await startWorker()
 }
 
-/** Transcribe mono 16kHz Float32 audio. */
-export async function transcribe(samples: Float32Array): Promise<string> {
+async function transcribeOnce(samples: Float32Array): Promise<string> {
   await startWorker()
   const id = reqId++
+  const t0 = Date.now()
   const file = join(tmpdir(), `cva-stt-${process.pid}-${id}.f32`)
   await writeFile(file, Buffer.from(samples.buffer, samples.byteOffset, samples.byteLength))
   try {
-    return await new Promise<string>((resolve, reject) => {
+    const text = await new Promise<string>((resolve, reject) => {
       pending.set(id, { resolve, reject })
       worker!.stdin!.write(JSON.stringify({ type: 'transcribe', id, file }) + '\n')
     })
+    log(
+      'timing',
+      `stt ${((Date.now() - t0) / 1000).toFixed(2)}s for ${(samples.length / 16000).toFixed(1)}s audio`,
+    )
+    return text
   } catch (err) {
     unlink(file).catch(() => {})
     throw err
+  }
+}
+
+/** Transcribe mono 16kHz Float32 audio. If the worker died mid-request, respawn and
+ *  retry once — a single crash shouldn't eat the user's utterance. */
+export async function transcribe(samples: Float32Array): Promise<string> {
+  try {
+    return await transcribeOnce(samples)
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    if (!/worker exited/i.test(msg)) throw err
+    log('stt-worker', 'retrying transcription after worker crash')
+    return await transcribeOnce(samples)
   }
 }

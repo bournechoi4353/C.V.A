@@ -1,71 +1,73 @@
 // Microphone capture for push-to-talk.
 //
-// While recording it reports a live amplitude level (0..1) for the orb, and on stop it
-// returns the captured audio decoded to mono 16kHz Float32 — exactly what Whisper wants.
+// Captures raw Float32 PCM straight from a 16kHz AudioContext (same approach as the wake
+// listener) — on release the audio is already exactly what Whisper wants, so stop() is
+// instant. The old MediaRecorder path encoded to opus and then decoded + resampled the
+// whole clip AFTER release, which added dead time that grew with clip length.
+
+const SAMPLE_RATE = 16000
+const BUFFER = 2048 // 128ms frames
 
 export class Recorder {
   private stream?: MediaStream
-  private recorder?: MediaRecorder
-  private chunks: Blob[] = []
-  private liveCtx?: AudioContext
-  private analyser?: AnalyserNode
-  private rafId?: number
+  private ctx?: AudioContext
+  private source?: MediaStreamAudioSourceNode
+  private processor?: ScriptProcessorNode
+  private frames: Float32Array[] = []
 
-  /** Called ~60x/sec while recording with a 0..1 amplitude level. */
+  /** Called per audio frame while recording with a 0..1 amplitude level. */
   onLevel?: (level: number) => void
 
   async start(): Promise<void> {
     this.stream = await navigator.mediaDevices.getUserMedia({
       audio: { echoCancellation: true, noiseSuppression: true },
     })
-    this.chunks = []
-    this.recorder = new MediaRecorder(this.stream)
-    this.recorder.ondataavailable = (e) => {
-      if (e.data.size > 0) this.chunks.push(e.data)
-    }
-    this.recorder.start()
+    this.ctx = new AudioContext({ sampleRate: SAMPLE_RATE })
+    this.source = this.ctx.createMediaStreamSource(this.stream)
+    this.processor = this.ctx.createScriptProcessor(BUFFER, 1, 1)
+    this.frames = []
 
-    // Live amplitude meter for the orb.
-    this.liveCtx = new AudioContext()
-    const source = this.liveCtx.createMediaStreamSource(this.stream)
-    this.analyser = this.liveCtx.createAnalyser()
-    this.analyser.fftSize = 512
-    source.connect(this.analyser)
+    this.processor.onaudioprocess = (e) => {
+      const input = e.inputBuffer.getChannelData(0)
+      this.frames.push(new Float32Array(input))
 
-    const buf = new Uint8Array(this.analyser.frequencyBinCount)
-    const tick = () => {
-      this.analyser!.getByteTimeDomainData(buf)
       let sum = 0
-      for (let i = 0; i < buf.length; i++) {
-        const v = (buf[i] - 128) / 128
-        sum += v * v
-      }
-      const rms = Math.sqrt(sum / buf.length)
-      this.onLevel?.(Math.min(1, rms * 3))
-      this.rafId = requestAnimationFrame(tick)
+      for (let i = 0; i < input.length; i++) sum += input[i] * input[i]
+      this.onLevel?.(Math.min(1, Math.sqrt(sum / input.length) * 3))
     }
-    tick()
+
+    this.source.connect(this.processor)
+    // ScriptProcessor only fires when connected to a destination; we never write its
+    // output buffer, so this stays silent (no feedback).
+    this.processor.connect(this.ctx.destination)
   }
 
-  /** Stop recording; resolves with mono 16kHz Float32 audio. */
+  /** Stop recording; resolves immediately with mono 16kHz Float32 audio. */
   async stop(): Promise<Float32Array> {
-    if (this.rafId !== undefined) cancelAnimationFrame(this.rafId)
+    try {
+      this.processor?.disconnect()
+      this.source?.disconnect()
+    } catch {
+      /* already disconnected */
+    }
+    this.stream?.getTracks().forEach((t) => t.stop())
+    await this.ctx?.close().catch(() => {})
     this.onLevel?.(0)
 
-    const blob = await new Promise<Blob>((resolve) => {
-      this.recorder!.onstop = () =>
-        resolve(new Blob(this.chunks, { type: this.recorder!.mimeType }))
-      this.recorder!.stop()
-    })
+    let len = 0
+    for (const f of this.frames) len += f.length
+    const out = new Float32Array(len)
+    let o = 0
+    for (const f of this.frames) {
+      out.set(f, o)
+      o += f.length
+    }
 
-    this.stream?.getTracks().forEach((t) => t.stop())
-    await this.liveCtx?.close()
-
-    // Decode + resample to 16kHz mono by decoding into a 16kHz context.
-    const arrayBuf = await blob.arrayBuffer()
-    const decodeCtx = new AudioContext({ sampleRate: 16000 })
-    const audioBuf = await decodeCtx.decodeAudioData(arrayBuf)
-    await decodeCtx.close()
-    return audioBuf.getChannelData(0).slice()
+    this.frames = []
+    this.processor = undefined
+    this.source = undefined
+    this.ctx = undefined
+    this.stream = undefined
+    return out
   }
 }

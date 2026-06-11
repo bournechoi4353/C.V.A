@@ -1,13 +1,19 @@
 // Hands-free wake-word listening, built on the speech stack we already have (no extra
 // engine, no API key, no native deps). A continuous energy-gated VAD captures each spoken
 // utterance; we transcribe it locally with the Whisper sidecar and fuzzy-match the wake
-// phrase ("Hey computah" → "hey comp…"). All detection is local; only the command (after
-// the wake phrase) is ever sent onward.
+// name ("Claude" / "Hey Claude"). All detection is local; only the command (after the
+// name) is ever sent onward.
+//
+// Matching/noise-filter logic lives in src/shared/wake-detect.mjs (shared with the Node
+// test harness); re-exported here for the existing import sites.
+
+export { detectWake, looksLikeNoise } from '../../shared/wake-detect.mjs'
 
 const SAMPLE_RATE = 16000
 const BUFFER = 2048 // 128ms frames
 const FRAME_MS = (BUFFER / SAMPLE_RATE) * 1000
-const HANG_FRAMES = Math.round(650 / FRAME_MS) // ~0.65s of silence ends an utterance
+const HANG_FRAMES = Math.round(500 / FRAME_MS) // ~0.5s of silence ends an utterance (felt latency)
+const SPEC_FRAMES = 2 // ~256ms of silence — fire a SPECULATIVE early transcription
 const MIN_SPEECH_FRAMES = Math.round(250 / FRAME_MS) // ignore < ~250ms blips
 const MAX_FRAMES = Math.round(10000 / FRAME_MS) // cap utterances at ~10s
 const PREROLL_FRAMES = 4 // ~512ms captured before onset, so "hey" isn't clipped
@@ -30,37 +36,6 @@ function concat(frames: Float32Array[]): Float32Array {
     o += f.length
   }
   return out
-}
-
-// "Hey computah" / "hey computer" and the many ways Whisper actually renders it
-// (computer, computa, computah, komputa, commuter, …). Broad on purpose — wake-misses
-// are more annoying than the rare false positive, and we only act while idle.
-const WAKE_RE = /\b(?:hey|hay|hi|ay|he|yo|okay|ok|a)\s+(?:comp|komp|cump|kahmp|comm|kom)\w*/i
-
-// Whisper hallucinates these on silence/noise — ignore them.
-const NOISE_OUT = new Set([
-  'you', 'thank you', 'thanks for watching', 'thank you for watching',
-  'thank you very much', 'bye', 'bye bye', 'the end', 'so',
-])
-export function looksLikeNoise(text: string): boolean {
-  const t = text
-    .toLowerCase()
-    .replace(/[^a-z\s]/g, '')
-    .replace(/\s+/g, ' ')
-    .trim()
-  return t.length < 2 || NOISE_OUT.has(t)
-}
-
-export function detectWake(text: string): { woke: boolean; command: string } {
-  const norm = text
-    .toLowerCase()
-    .replace(/[^a-z0-9\s']/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
-  const m = WAKE_RE.exec(norm)
-  if (!m) return { woke: false, command: '' }
-  const command = norm.slice((m.index ?? 0) + m[0].length).trim()
-  return { woke: true, command }
 }
 
 /** A short two-tone acknowledgement chime. */
@@ -99,13 +74,27 @@ export class WakeListener {
 
   /** Live amplitude (0..1) for the UI. */
   onLevel?: (level: number) => void
-  /** Called with mono 16kHz Float32 audio for each completed utterance. */
-  onUtterance?: (audio: Float32Array) => void
+  /** Called with mono 16kHz Float32 audio for each completed utterance, plus the count
+   *  of speech frames — compare against onEarlyUtterance's to know if the speculative
+   *  transcription covers the same speech. */
+  onUtterance?: (audio: Float32Array, speechFrames: number) => void
+  /** Called once per utterance at ~256ms of trailing silence — BEFORE the endpoint is
+   *  confirmed — so transcription can start during the remaining silence wait. If the
+   *  speaker resumes, the final utterance has a higher speechFrames count and the
+   *  speculative result must be discarded. */
+  onEarlyUtterance?: (audio: Float32Array, speechFrames: number) => void
+  /** Called when the mic stream dies (device unplugged/switched) — restart to recover. */
+  onEnded?: () => void
 
   async start(): Promise<void> {
     this.stream = await navigator.mediaDevices.getUserMedia({
       audio: { echoCancellation: true, noiseSuppression: true },
     })
+    // Mic disconnect (device unplugged, input switched) → tell the controller so it
+    // can reconnect instead of silently going deaf.
+    for (const track of this.stream.getTracks()) {
+      track.addEventListener('ended', () => this.onEnded?.())
+    }
     this.ctx = new AudioContext({ sampleRate: SAMPLE_RATE })
     this.source = this.ctx.createMediaStreamSource(this.stream)
     this.processor = this.ctx.createScriptProcessor(BUFFER, 1, 1)
@@ -143,6 +132,9 @@ export class WakeListener {
           this.speech++
         } else {
           this.silence++
+          if (this.silence === SPEC_FRAMES && this.speech >= MIN_SPEECH_FRAMES) {
+            this.onEarlyUtterance?.(concat(this.frames), this.speech)
+          }
         }
         if (this.silence >= HANG_FRAMES || this.frames.length >= MAX_FRAMES) {
           this.endUtterance()
@@ -157,14 +149,15 @@ export class WakeListener {
   }
 
   private endUtterance(): void {
-    const enough = this.speech >= MIN_SPEECH_FRAMES
+    const speechFrames = this.speech
+    const enough = speechFrames >= MIN_SPEECH_FRAMES
     const audio = enough ? concat(this.frames) : null
     this.speaking = false
     this.silence = 0
     this.speech = 0
     this.frames = []
     this.onLevel?.(0)
-    if (audio) this.onUtterance?.(audio)
+    if (audio) this.onUtterance?.(audio, speechFrames)
   }
 
   stop(): void {

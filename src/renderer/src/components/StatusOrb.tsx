@@ -2,19 +2,19 @@ import { useEffect, useRef } from 'react'
 import { useStore, type Status } from '../store'
 import { getLevel } from '../level'
 
-// RGB per state — the orb's whole palette shifts with what CVA is doing.
+// RGB per state — desaturated, instrument-panel hues (match styles.css vars).
 const COLORS: Record<Status, [number, number, number]> = {
-  idle: [56, 225, 255], // cyan (calm)
-  listening: [255, 184, 77], // amber
-  thinking: [56, 225, 255], // cyan (active pulse)
-  speaking: [125, 255, 176], // green
+  idle: [140, 136, 126], // neutral warm gray
+  listening: [217, 164, 65], // amber
+  thinking: [217, 119, 87], // terracotta
+  speaking: [127, 181, 130], // sage green
 }
 
 const SIZE = 300
 
-// A canvas "arc reactor": glowing core that grows with amplitude, a reactive
-// waveform ring, and rotating arcs. Reads the live level each frame (set by the
-// mic when listening / by TTS when speaking); synthesizes a pulse when thinking.
+// A radial instrument gauge: a ring of fine ticks whose lengths ripple with the live
+// audio level (mic while listening / TTS while speaking), a hairline inner circle, a
+// small solid core, and one slow rotating arc. Precision over bloom — no glow blobs.
 export default function StatusOrb() {
   const status = useStore((s) => s.status)
   const statusRef = useRef<Status>(status)
@@ -34,9 +34,16 @@ export default function StatusOrb() {
     const cx = SIZE / 2
     const cy = SIZE / 2
 
+    const TICKS = 72
+    const R_INNER = 64 // hairline circle
+    const R_TICK = 84 // tick ring base radius
+    const TICK_MAX = 44 // max reactive tick length
+
     let raf = 0
     let t = 0
     let smooth = 0
+    // Per-tick smoothed energy so the ring ripples instead of jittering.
+    const tickEnergy = new Float32Array(TICKS)
 
     const draw = () => {
       t += 0.016
@@ -44,69 +51,61 @@ export default function StatusOrb() {
       const [r, g, b] = COLORS[st]
       const active = st !== 'idle'
 
-      // Target amplitude: real audio level, or a synthetic pulse while thinking,
-      // or a gentle idle breath.
       let target = getLevel()
-      if (st === 'thinking') target = 0.35 + 0.35 * (0.5 + 0.5 * Math.sin(t * 5))
-      // Idle: gentle breath, but react to live mic level (e.g. while wake-listening).
-      else if (st === 'idle') target = Math.max(getLevel(), 0.12 + 0.06 * Math.sin(t * 1.5))
+      if (st === 'thinking') target = 0.3 + 0.3 * (0.5 + 0.5 * Math.sin(t * 5))
+      else if (st === 'idle') target = Math.max(getLevel(), 0.07 + 0.04 * Math.sin(t * 1.4))
       smooth += (target - smooth) * 0.2
 
       ctx.clearRect(0, 0, SIZE, SIZE)
 
-      // outer glow
-      const coreR = 34 + smooth * 34
-      const glow = ctx.createRadialGradient(cx, cy, 0, cx, cy, coreR * 2.2)
-      glow.addColorStop(0, `rgba(${r},${g},${b},0.9)`)
-      glow.addColorStop(0.5, `rgba(${r},${g},${b},0.35)`)
-      glow.addColorStop(1, `rgba(${r},${g},${b},0)`)
-      ctx.fillStyle = glow
-      ctx.beginPath()
-      ctx.arc(cx, cy, coreR * 2.2, 0, Math.PI * 2)
-      ctx.fill()
+      // tick ring — each tick's length ripples around the circle with the level
+      for (let i = 0; i < TICKS; i++) {
+        const a = (i / TICKS) * Math.PI * 2 - Math.PI / 2
+        const wave =
+          0.5 +
+          0.3 * Math.sin(a * 5 + t * (active ? 3.2 : 1.1)) +
+          0.2 * Math.sin(a * 9 - t * (active ? 2.1 : 0.7))
+        const targetLen = 3 + smooth * TICK_MAX * Math.max(0, wave)
+        tickEnergy[i] += (targetLen - tickEnergy[i]) * 0.3
+        const len = tickEnergy[i]
 
-      // solid core
-      ctx.fillStyle = `rgba(${r},${g},${b},0.92)`
+        const x0 = cx + Math.cos(a) * R_TICK
+        const y0 = cy + Math.sin(a) * R_TICK
+        const x1 = cx + Math.cos(a) * (R_TICK + len)
+        const y1 = cy + Math.sin(a) * (R_TICK + len)
+        const alpha = 0.22 + Math.min(0.6, (len / TICK_MAX) * 0.85)
+        ctx.strokeStyle = `rgba(${r},${g},${b},${alpha})`
+        ctx.lineWidth = 1.5
+        ctx.beginPath()
+        ctx.moveTo(x0, y0)
+        ctx.lineTo(x1, y1)
+        ctx.stroke()
+      }
+
+      // hairline inner circle
+      ctx.strokeStyle = `rgba(${r},${g},${b},0.28)`
+      ctx.lineWidth = 1
+      ctx.beginPath()
+      ctx.arc(cx, cy, R_INNER, 0, Math.PI * 2)
+      ctx.stroke()
+
+      // solid core — small, breathes with the level
+      const coreR = 9 + smooth * 14
+      ctx.fillStyle = `rgba(${r},${g},${b},0.95)`
       ctx.beginPath()
       ctx.arc(cx, cy, coreR, 0, Math.PI * 2)
       ctx.fill()
-      ctx.fillStyle = 'rgba(255,255,255,0.55)'
-      ctx.beginPath()
-      ctx.arc(cx - coreR * 0.25, cy - coreR * 0.28, coreR * 0.45, 0, Math.PI * 2)
-      ctx.fill()
 
-      // reactive waveform ring
-      const baseR = 92
-      const pts = 120
+      // one slow rotating arc + a short counter-arc, just outside the ticks
+      ctx.strokeStyle = `rgba(${r},${g},${b},0.4)`
+      ctx.lineWidth = 1
       ctx.beginPath()
-      for (let i = 0; i <= pts; i++) {
-        const a = (i / pts) * Math.PI * 2
-        const wob = (Math.sin(a * 6 + t * 3) * 4 + Math.sin(a * 11 - t * 2) * 3) * (active ? 1 : 0.3)
-        const rr = baseR + smooth * 42 * (0.55 + 0.45 * Math.sin(a * 8 + t * 4)) + wob
-        const x = cx + Math.cos(a) * rr
-        const y = cy + Math.sin(a) * rr
-        if (i === 0) ctx.moveTo(x, y)
-        else ctx.lineTo(x, y)
-      }
-      ctx.closePath()
-      ctx.strokeStyle = `rgba(${r},${g},${b},0.65)`
-      ctx.lineWidth = 2
+      ctx.arc(cx, cy, 142, t * 0.3, t * 0.3 + Math.PI * 0.38)
       ctx.stroke()
-
-      // rotating outer arcs
-      for (let k = 0; k < 3; k++) {
-        const rr = 116 + k * 12
-        const dir = k % 2 ? -1 : 1
-        const start = t * dir * (0.35 + k * 0.15)
-        ctx.strokeStyle = `rgba(${r},${g},${b},${0.3 - k * 0.06})`
-        ctx.lineWidth = 1.5
-        ctx.beginPath()
-        ctx.arc(cx, cy, rr, start, start + Math.PI * (0.5 - k * 0.08))
-        ctx.stroke()
-        ctx.beginPath()
-        ctx.arc(cx, cy, rr, start + Math.PI, start + Math.PI + Math.PI * 0.35)
-        ctx.stroke()
-      }
+      ctx.strokeStyle = `rgba(${r},${g},${b},0.22)`
+      ctx.beginPath()
+      ctx.arc(cx, cy, 147, -t * 0.18, -t * 0.18 + Math.PI * 0.16)
+      ctx.stroke()
 
       raf = requestAnimationFrame(draw)
     }

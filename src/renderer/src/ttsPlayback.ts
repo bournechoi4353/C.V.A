@@ -5,7 +5,7 @@
 import { setLevel } from './level'
 
 interface Chunk {
-  samples: Float32Array
+  samples: Int16Array // Int16 PCM straight off IPC (half the copy of Float32)
   rate: number
 }
 
@@ -22,7 +22,13 @@ function resolveDrain() {
   rs.forEach((r) => r())
 }
 
-export function enqueueAudio(samples: Float32Array, rate: number): void {
+/** Create + resume the AudioContext at startup so the first reply doesn't pay for it. */
+export function warmAudioPlayback(): void {
+  if (!ctx) ctx = new AudioContext()
+  void ctx.resume().catch(() => {})
+}
+
+export function enqueueAudio(samples: Int16Array, rate: number): void {
   queue.push({ samples, rate })
   if (!playing) void playNext()
 }
@@ -41,7 +47,8 @@ function playNext(): void {
   const audioCtx = ctx
 
   const buffer = audioCtx.createBuffer(1, chunk.samples.length, chunk.rate)
-  buffer.getChannelData(0).set(chunk.samples)
+  const ch = buffer.getChannelData(0)
+  for (let i = 0; i < chunk.samples.length; i++) ch[i] = chunk.samples[i] / 0x8000
 
   const source = audioCtx.createBufferSource()
   source.buffer = buffer

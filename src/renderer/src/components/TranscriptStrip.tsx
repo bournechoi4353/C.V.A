@@ -12,12 +12,12 @@ export default function TranscriptStrip() {
   return (
     <div className="transcript">
       {messages.length === 0 && (
-        <div className="transcript__empty">Type below to talk to CVA…</div>
+        <div className="transcript__empty">SAY “CLAUDE” OR TYPE BELOW</div>
       )}
       {messages.map((m) => (
-        <div key={m.id} className={`bubble bubble--${m.role}`}>
-          <span className="bubble__role">{m.role === 'user' ? 'You' : 'CVA'}</span>
-          <span className="bubble__text">{m.text}</span>
+        <div key={m.id} className={`row row--${m.role}`}>
+          <span className="row__role">{m.role === 'user' ? 'You' : 'Claude'}</span>
+          <span className="row__text">{m.text}</span>
         </div>
       ))}
       <div ref={endRef} />

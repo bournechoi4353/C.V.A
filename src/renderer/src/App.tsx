@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import HUD from './components/HUD'
-import { enqueueAudio } from './ttsPlayback'
+import { enqueueAudio, warmAudioPlayback } from './ttsPlayback'
 import { useStore } from './store'
 
 export default function App() {
@@ -17,6 +17,7 @@ export default function App() {
   // Warm up the speech models in the background on launch. Retry a few times so a
   // hot-reload race (renderer up before main's IPC handlers register) self-heals.
   useEffect(() => {
+    warmAudioPlayback() // pre-create the output AudioContext so first audio starts instantly
     const offProgress = window.cva.onSttProgress((p) => setSttProgress(p.progress))
 
     async function ensure<T>(fn: () => Promise<T>): Promise<T> {
@@ -43,17 +44,19 @@ export default function App() {
     return () => offProgress()
   }, [setSttReady, setSttProgress, setSttError, setTtsReady, setTtsError])
 
-  // Tool side-channels: weather card + timer alerts.
+  // Tool side-channels: weather card + timer alerts + per-turn usage.
   useEffect(() => {
     const offWeather = window.cva.onWeather((w) => setWeather(w))
     const offTimer = window.cva.onTimerFire((t) => {
-      setToast(`⏰ ${t.phrase}`)
+      setToast(t.phrase)
       if (t.samples && t.rate) enqueueAudio(t.samples, t.rate)
       setTimeout(() => setToast(null), 6000)
     })
+    const offUsage = window.cva.onUsage((u) => useStore.getState().addUsage(u))
     return () => {
       offWeather()
       offTimer()
+      offUsage()
     }
   }, [setWeather, setToast])
 

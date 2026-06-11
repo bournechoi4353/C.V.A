@@ -4,10 +4,12 @@
 // completes, synthesize that sentence with Kokoro right away, and emit the audio to the
 // renderer — so sentence 1 starts playing while Claude is still writing sentence 2 and
 // Kokoro pipelines the rest. First audio lands near time-to-first-sentence instead of
-// (full reply + full synthesis).
+// (full reply + full synthesis). Before the FIRST sentence completes we go further and
+// speak its opening clause (cut at a comma) so a long first sentence can't delay audio.
 
 import { ask } from './cva'
-import { synthesize } from './tts'
+import { synthesize, floatToInt16 } from './tts'
+import { log } from './logger'
 
 // Make a sentence safe to speak: markdown links → their text, bare URLs/markdown
 // artifacts dropped. Returns '' if nothing speakable remains (e.g. a lone URL).
@@ -55,6 +57,21 @@ function takeSentences(buffer: string, force: boolean): { sentences: string[]; r
   return { sentences, rest }
 }
 
+// First-audio accelerator: until the first chunk has been queued for synthesis, a long
+// opening sentence can be cut early at a clause boundary (",;:—" followed by a space —
+// the space requirement protects numbers like "1,000"). Min length avoids speaking a
+// stub so short the prosody break would be jarring.
+const FIRST_CLAUSE_MIN = 12
+function firstClauseCut(buffer: string): number {
+  for (let i = FIRST_CLAUSE_MIN; i < buffer.length - 1; i++) {
+    const c = buffer[i]
+    if ((c === ',' || c === ';' || c === ':' || c === '—') && /\s/.test(buffer[i + 1])) {
+      return i + 1
+    }
+  }
+  return -1
+}
+
 export async function streamTurn(
   prompt: string,
   send: (channel: string, payload: unknown) => void,
@@ -64,25 +81,44 @@ export async function streamTurn(
   let seq = 0
   let synthChain: Promise<void> = Promise.resolve()
 
+  // Per-leg timing — the Phase 8 latency budget. Logged at end of turn.
+  const t0 = Date.now()
+  let tFirstToken = 0
+  let tFirstAudio = 0
+
+  const emit = (text: string): void => {
+    const spoken = speakable(text)
+    if (!spoken) return // nothing to say (e.g. a bare URL) — skip audio
+    const mySeq = seq++
+    // Chain synth calls so Kokoro runs one chunk at a time, in order, while the
+    // Claude stream keeps arriving. Each finished chunk's audio is sent immediately.
+    synthChain = synthChain.then(async () => {
+      if (shouldCancel()) return
+      try {
+        const { samples, rate } = await synthesize(spoken)
+        if (shouldCancel()) return
+        if (!tFirstAudio) tFirstAudio = Date.now()
+        // Int16 halves the IPC copy vs Float32; the renderer converts back on playback.
+        send('cva:turn-audio', { seq: mySeq, samples: floatToInt16(samples), rate })
+      } catch (err) {
+        log('error', `synth failed: ${err instanceof Error ? err.message : err}`)
+      }
+    })
+  }
+
   const flush = (force: boolean): void => {
     const { sentences, rest } = takeSentences(buffer, force)
     buffer = rest
-    for (const sentence of sentences) {
-      const spoken = speakable(sentence)
-      if (!spoken) continue // nothing to say (e.g. a bare URL) — skip audio
-      const mySeq = seq++
-      // Chain synth calls so Kokoro runs one sentence at a time, in order, while the
-      // Claude stream keeps arriving. Each finished sentence's audio is sent immediately.
-      synthChain = synthChain.then(async () => {
-        if (shouldCancel()) return
-        try {
-          const { samples, rate } = await synthesize(spoken)
-          if (shouldCancel()) return
-          send('cva:turn-audio', { seq: mySeq, samples, rate })
-        } catch (err) {
-          console.error('[pipeline] synth failed:', err)
-        }
-      })
+    for (const sentence of sentences) emit(sentence)
+    // Nothing queued yet? Speak the opening clause early instead of waiting out a long
+    // first sentence — first audio is what latency feels like.
+    if (seq === 0 && !force) {
+      const cut = firstClauseCut(buffer)
+      if (cut > 0) {
+        const clause = buffer.slice(0, cut)
+        buffer = buffer.slice(cut)
+        emit(clause)
+      }
     }
   }
 
@@ -90,6 +126,7 @@ export async function streamTurn(
     prompt,
     (delta) => {
       if (shouldCancel()) return
+      if (!tFirstToken) tFirstToken = Date.now()
       buffer += delta
       send('cva:turn-text', { delta })
       flush(false)
@@ -102,5 +139,14 @@ export async function streamTurn(
 
   flush(true) // synthesize the trailing sentence
   await synthChain // wait until every sentence's audio has been emitted
+
+  if (!shouldCancel()) {
+    const rel = (t: number) => (t ? `${((t - t0) / 1000).toFixed(2)}s` : 'n/a')
+    log(
+      'timing',
+      `turn: first-token ${rel(tFirstToken)} · first-audio ${rel(tFirstAudio)} · ` +
+        `total ${((Date.now() - t0) / 1000).toFixed(2)}s · ${seq} chunk(s)`,
+    )
+  }
   return reply.text
 }

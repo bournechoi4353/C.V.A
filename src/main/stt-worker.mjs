@@ -9,11 +9,18 @@
 //                 {"type":"result","id":N,"text":"..."} | {"type":"error","id":N,"message":"..."}
 //                 {"type":"fatal","message":"..."}
 
-import { pipeline } from '@huggingface/transformers'
+import { pipeline, env } from '@huggingface/transformers'
 import fs from 'node:fs'
 import readline from 'node:readline'
 
-const MODEL = 'Xenova/whisper-small.en'
+// Packaged builds point the model cache at the app data dir (node_modules is read-only).
+if (process.env.CVA_MODELS_DIR) env.cacheDir = process.env.CVA_MODELS_DIR
+
+// Moonshine-base: built for short voice commands — compute scales with audio length
+// instead of Whisper's fixed 30s padding, so a 2s utterance transcribes in ~0.05–0.1s
+// (benchmarked ~10× faster than distil-whisper-small at equal accuracy on our phrases;
+// `npm run bench:stt`). Still fully local/free. Override via CVA_STT_MODEL.
+const MODEL = process.env.CVA_STT_MODEL || 'onnx-community/moonshine-base-ONNX'
 
 function send(obj) {
   process.stdout.write(JSON.stringify(obj) + '\n')
@@ -53,8 +60,9 @@ rl.on('line', async (line) => {
     const buf = fs.readFileSync(msg.file)
     const ab = buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength)
     const samples = new Float32Array(ab)
+    const t0 = Date.now()
     const out = await transcriber(samples)
-    send({ type: 'result', id: msg.id, text: (out.text ?? '').trim() })
+    send({ type: 'result', id: msg.id, text: (out.text ?? '').trim(), ms: Date.now() - t0 })
   } catch (e) {
     send({ type: 'error', id: msg.id, message: e?.message || String(e) })
   } finally {
