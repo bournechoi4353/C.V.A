@@ -53,10 +53,19 @@ export default function App() {
       setTimeout(() => setToast(null), 6000)
     })
     const offUsage = window.cva.onUsage((u) => useStore.getState().addUsage(u))
+    const offClaude = window.cva.onClaudeStatus(({ ok, detail }) => {
+      const wasOk = useStore.getState().claudeOk
+      useStore.getState().setClaudeOk(ok)
+      if (!ok && wasOk !== false) {
+        setToast(detail) // e.g. "run `claude` and log in" — shown once per transition
+        setTimeout(() => setToast(null), 12000)
+      }
+    })
     return () => {
       offWeather()
       offTimer()
       offUsage()
+      offClaude()
     }
   }, [setWeather, setToast])
 

@@ -1,7 +1,7 @@
 import { app, BrowserWindow, ipcMain, session, systemPreferences } from 'electron'
 import { join } from 'node:path'
 import { readFileSync, writeFileSync } from 'node:fs'
-import { resetConversation, warm, setUsageListener } from './cva'
+import { resetConversation, warm, setUsageListener, setClaudeStatusListener } from './cva'
 import { ensureTts, synthesize, floatToInt16 } from './tts'
 import { streamTurn } from './pipeline'
 import { tryFastPath } from './fastpath'
@@ -109,12 +109,20 @@ app.whenReady().then(() => {
   // override for the STT worker's cache.
   if (app.isPackaged) {
     if (!process.env.CVA_NO_AUTOSTART) app.setLoginItemSettings({ openAtLogin: true })
-    // Apps launched from Finder/login don't inherit a shell PATH — make sure the
-    // system Node (STT worker + the SDK's CLI) is findable.
+    // Apps launched from Finder/login don't inherit a shell PATH. Put the BUNDLED Node
+    // first (the app ships its own — end users don't have Node), then the usual spots.
     if (process.platform === 'darwin') {
-      process.env.PATH = `${process.env.PATH ?? '/usr/bin:/bin'}:/opt/homebrew/bin:/usr/local/bin`
+      process.env.PATH = `${join(process.resourcesPath, 'bin')}:${process.env.PATH ?? '/usr/bin:/bin'}:/opt/homebrew/bin:/usr/local/bin`
     }
   }
+
+  // Claude session health → log + HUD (first-run onboarding: "needs login" guidance).
+  setClaudeStatusListener((s) => {
+    log('cva', `claude status: ${s.ok ? 'ready' : `NOT ready — ${s.detail}`}`)
+    for (const win of BrowserWindow.getAllWindows()) {
+      if (!win.isDestroyed()) win.webContents.send('cva:claude-status', s)
+    }
+  })
 
   // Per-turn token usage → log + HUD Session widget.
   setUsageListener((u) => {

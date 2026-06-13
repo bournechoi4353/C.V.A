@@ -4,10 +4,22 @@
 
 import { spawn, type ChildProcess } from 'node:child_process'
 import { join } from 'node:path'
+import { existsSync } from 'node:fs'
 import { writeFile, unlink } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { app } from 'electron'
 import { log } from './logger'
+
+// The worker needs a real Node (not Electron's runtime — onnxruntime-node SIGTRAPs
+// there). Packaged apps ship their own (Resources/bin/node, staged at build time) so
+// end users don't need Node installed; dev uses the system one.
+function nodeBinary(): string {
+  if (app.isPackaged) {
+    const bundled = join(process.resourcesPath, 'bin', 'node')
+    if (existsSync(bundled)) return bundled
+  }
+  return 'node'
+}
 
 let worker: ChildProcess | null = null
 let readyPromise: Promise<void> | null = null
@@ -28,8 +40,7 @@ function startWorker(): Promise<void> {
   if (readyPromise) return readyPromise
 
   readyPromise = new Promise<void>((resolve, reject) => {
-    // 'node' = the user's system Node (NOT Electron) — onnxruntime-node runs fine there.
-    const w = spawn('node', [workerPath()], {
+    const w = spawn(nodeBinary(), [workerPath()], {
       cwd: app.getAppPath(),
       stdio: ['pipe', 'pipe', 'pipe'],
       env: { ...process.env }, // CVA_STT_MODEL (if set) flows through to the worker
@@ -50,7 +61,10 @@ function startWorker(): Promise<void> {
         } catch {
           continue
         }
-        if (msg.type === 'ready') resolve()
+        if (msg.type === 'ready') {
+          log('stt', 'worker ready')
+          resolve()
+        }
         else if (msg.type === 'progress' && typeof msg.progress === 'number') onProgress?.(msg.progress)
         else if (msg.type === 'result' && msg.id !== undefined) {
           pending.get(msg.id)?.resolve(msg.text ?? '')

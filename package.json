@@ -1,8 +1,8 @@
 {
   "name": "cva",
-  "version": "0.1.0",
-  "description": "C.V.A — Claude Voice Assistant (Jarvis-style HUD)",
-  "author": "",
+  "version": "1.0.0",
+  "description": "C.V.A — the voice console for Claude. A Jarvis-style, always-on voice assistant for your Mac: local ears, local voice, frontier brain.",
+  "author": "Bourne Choi",
   "main": "./out/main/index.js",
   "scripts": {
     "dev": "electron-vite dev",
@@ -16,7 +16,8 @@
     "test:geocode": "node scripts/test-geocode.mjs",
     "bench:stt": "node scripts/bench-stt.mjs",
     "bench:turn": "node scripts/bench-turn.mjs",
-    "package": "electron-vite build && electron-builder --dir"
+    "package": "node scripts/stage-node.mjs && electron-vite build && electron-builder --dir",
+    "package:dmg": "node scripts/stage-node.mjs && electron-vite build && electron-builder --mac dmg"
   },
   "build": {
     "appId": "com.bourne.cva",
@@ -26,6 +27,12 @@
     "files": [
       "out/**",
       "src/main/stt-worker.mjs"
+    ],
+    "extraResources": [
+      {
+        "from": "build/node",
+        "to": "bin/node"
+      }
     ],
     "directories": {
       "output": "dist"

@@ -38,6 +38,8 @@ interface CvaState {
   wakeHeard: string | null // last thing the wake listener transcribed (for feedback)
   usage: SessionUsage // cumulative Claude usage this session
   addUsage: (u: TurnUsage) => void
+  claudeOk: boolean | null // null = starting, true = session ready, false = needs login
+  setClaudeOk: (ok: boolean) => void
   setStatus: (status: Status) => void
   addMessage: (message: Message) => void
   appendMessage: (id: string, delta: string) => void
@@ -72,6 +74,8 @@ export const useStore = create<CvaState>((set) => ({
   wakeMode: false,
   wakeHeard: null,
   usage: { turns: 0, inTokens: 0, outTokens: 0, costUsd: 0 },
+  claudeOk: null,
+  setClaudeOk: (claudeOk) => set({ claudeOk }),
   addUsage: (u) =>
     set((s) => ({
       usage: {

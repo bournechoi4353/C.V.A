@@ -55,6 +55,7 @@ export interface CvaApi {
   onProfile: (cb: (p: Profile) => void) => () => void
   onMemory: (cb: (p: { memories: MemoryItem[] }) => void) => () => void
   onUsage: (cb: (p: TurnUsage) => void) => () => void
+  onClaudeStatus: (cb: (p: { ok: boolean; detail: string }) => void) => () => void
 }
 
 declare global {

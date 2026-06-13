@@ -1,8 +1,33 @@
-# C.V.A — Claude Voice Assistant
+# C.V.A — the voice console for Claude
 
-A Jarvis-style desktop assistant: a screen HUD you talk to. See [timeline.md](timeline.md)
-for the full phased plan. **Phase 1 (this build):** Electron + React HUD shell with a
-text round-trip to Claude.
+> **Say "Claude."** C.V.A turns a Mac into a Jarvis-style voice console — always
+> listening for its name, answering out loud in about a second, with every word of
+> audio processed on-device. Local ears. Local voice. Claude brain.
+
+Common commands (time, timers, weather) are answered by a **local fast path in ~1s**
+with no network round-trip; everything else streams from **Claude** with live web
+search and a persistent memory of who you are. Speech-to-text and text-to-speech run
+entirely on-device (the models ship inside the app) — only the final text of a command
+ever leaves the machine, billed to your existing Claude subscription, never an API key.
+
+## Install
+
+One line (Apple Silicon Mac):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/bournechoi4353/C.V.A/main/scripts/install.sh | bash
+```
+
+Downloads the latest release (~470MB, speech models included — Node runtime bundled,
+nothing else to install), drops `CVA.app` in /Applications, and launches it. You'll
+need a **Claude Pro/Max subscription** with the `claude` CLI logged in (`npm i -g
+@anthropic-ai/claude-code`, then `claude` → `/login`) — the HUD's System panel shows
+"Claude · needs login" until you do. Allow the microphone, toggle hands-free, and say
+**"Claude."** ([Privacy](PRIVACY.md): audio never leaves the machine.)
+
+Product identity, positioning, and the launch checklist live in [PRODUCT.md](PRODUCT.md);
+the build history in [timeline.md](timeline.md). Everything below is the engineering
+manual.
 
 ## Auth — uses your Claude subscription, not an API key
 

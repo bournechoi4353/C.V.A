@@ -45,6 +45,14 @@ export default function SidePanel({ side }: { side: 'left' | 'right' }) {
       ? { text: 'Voice out · ready', dot: 'ok' }
       : { text: 'Voice out · loading', dot: 'wait' }
 
+  const claudeOk = useStore((s) => s.claudeOk)
+  const claudeLine =
+    claudeOk === null
+      ? { text: 'Claude · starting', dot: 'wait' }
+      : claudeOk
+        ? { text: 'Claude · ready', dot: 'ok' }
+        : { text: 'Claude · needs login', dot: 'bad' }
+
   let lastUser = ''
   for (let i = messages.length - 1; i >= 0; i--) {
     if (messages[i].role === 'user') {
@@ -74,7 +82,7 @@ export default function SidePanel({ side }: { side: 'left' | 'right' }) {
       <aside className="panel panel--left">
         <Widget
           title="System"
-          lines={[{ text: 'Renderer · online', dot: 'ok' }, voiceIn, voiceOut]}
+          lines={[{ text: 'Renderer · online', dot: 'ok' }, voiceIn, voiceOut, claudeLine]}
         />
         <Widget
           title="Models"

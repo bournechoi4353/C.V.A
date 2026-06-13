@@ -81,6 +81,12 @@ const api = {
     ipcRenderer.on('cva:usage', h)
     return () => ipcRenderer.removeListener('cva:usage', h)
   },
+  /** Subscribe to Claude session health (ready vs needs-login). */
+  onClaudeStatus: (cb: (p: { ok: boolean; detail: string }) => void): (() => void) => {
+    const h = (_e: IpcRendererEvent, p: { ok: boolean; detail: string }) => cb(p)
+    ipcRenderer.on('cva:claude-status', h)
+    return () => ipcRenderer.removeListener('cva:claude-status', h)
+  },
 }
 
 export interface Profile {

@@ -36,6 +36,17 @@ export function setUsageListener(fn: (u: TurnUsage) => void): void {
   usageListener = fn
 }
 
+// Session health → HUD. ok:true once the SDK session initializes (auth worked);
+// ok:false when it dies before initializing (usually: `claude` CLI not logged in).
+export interface ClaudeStatus {
+  ok: boolean
+  detail: string
+}
+let statusListener: ((s: ClaudeStatus) => void) | null = null
+export function setClaudeStatusListener(fn: (s: ClaudeStatus) => void): void {
+  statusListener = fn
+}
+
 const SYSTEM_PROMPT = `You are Claude — C.V.A. (Claude Voice Assistant), a Jarvis-style personal
 assistant. The user addresses you by saying "Claude". Persona: composed, concise, dry wit.
 You address the user directly and never waffle.
@@ -153,9 +164,13 @@ async function startSession(): Promise<void> {
 // Drains the session's output stream. A `result` message marks end-of-turn.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function consume(q: AsyncIterable<any>): Promise<void> {
+  let sawInit = false
   try {
     for await (const msg of q) {
-      if (msg.type === 'stream_event') {
+      if (msg.type === 'system' && msg.subtype === 'init') {
+        sawInit = true
+        statusListener?.({ ok: true, detail: 'ready' })
+      } else if (msg.type === 'stream_event') {
         // Incremental text deltas — drive the streaming TTS pipeline.
         const event = msg.event
         if (
@@ -201,7 +216,14 @@ async function consume(q: AsyncIterable<any>): Promise<void> {
     }
   } catch (err) {
     pendingReject?.(err)
+    statusListener?.({ ok: false, detail: err instanceof Error ? err.message : String(err) })
   } finally {
+    if (!sawInit) {
+      statusListener?.({
+        ok: false,
+        detail: 'Claude session failed to start — open Terminal, run `claude`, and log in.',
+      })
+    }
     alive = false
     input = null
     pendingReject?.(new Error('Claude session ended'))
