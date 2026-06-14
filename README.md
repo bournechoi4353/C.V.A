@@ -2,7 +2,7 @@
 
 Say Claude and the computer will respond to you. Thus the name, C.V.A, Claude Voice Assistant!
 
-## Install
+Install
 
 On an Apple Silicon Mac:
 
@@ -23,7 +23,7 @@ claude          # then /login
 
 The app runs on Claude SDK so you never have to input your own Claude API Key, it only drains your Claude Subscriptoin. 
 
-## How it works
+How it works
 
 When you talk, it hears you on device, the orb pulses as a visual cue, and your voice is input. 
 
@@ -37,7 +37,7 @@ When you talk, it hears you on device, the orb pulses as a visual cue, and your 
   for the purposes of this project. 
 
 
-## Developers
+Developers
 
 ```bash
 npm install
