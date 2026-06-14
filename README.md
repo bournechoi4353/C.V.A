@@ -44,4 +44,5 @@ npm install
 npm run dev      # HUD with hot reload
 ```
 
+(ClaudeCode was used in the creation of this, thanks Claude!)
 
