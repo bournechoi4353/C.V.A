@@ -27,10 +27,10 @@ The app runs on Claude SDK so you never have to input your own Claude API Key, i
 
 When you talk, it hears you on device, the orb pulses as a visual cue, and your voice is input. 
 
-- **Hearing.** Speech-to-text is [Moonshine](https://github.com/usefulsensors/moonshine)
+- **Hearing.** Speech-to-text is through using Moonshine
   running locally. It's built for short commands, so a couple seconds of speech becomes
   text in around a tenth of a second. Hold the mic button or the spacebar to talk, or go
-  hands-free and let it listen for "Claude."
+  hands-free and say "Claude". 
 - **Thinking.** Claude (Haiku, for speed) over the Claude Agent SDK, with live web
   search and a memory of your name, location, and preferences that survives restarts.
 - **Speaking.** Uses Kokoro, a locally hosted voice that is both quick and sounds realistic enough
